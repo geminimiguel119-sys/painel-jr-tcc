@@ -1,76 +1,183 @@
+import base64
+import psycopg2
 import streamlit as st
 import pandas as pd
 
-# 1. CONFIGURAÇÃO DA PÁGINA (MOBILE-FIRST)
+# ==========================================
+# 1. CONFIGURAÇÃO E DESIGN MOBILE-FIRST
+# ==========================================
 st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
 
-# 2. ESTILO CSS PARA O TEMA MOBILE
 st.markdown("""
     <style>
-    .block-container { max-width: 440px !important; padding-top: 3.2rem !important; padding-bottom: 6rem !important; margin: 0 auto !important; }
+    /* Reset e Layout Base */
+    .block-container {
+        max-width: 480px !important;
+        padding-top: 2rem !important;
+        padding-bottom: 6rem !important;
+        margin: 0 auto !important;
+    }
     #MainMenu, header, footer { visibility: hidden; }
-    h1, h2, h3, h4 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-    div[data-testid="stMetric"] { background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); margin-bottom: 8px; }
-    div[data-testid="stMetricLabel"] p { font-size: 0.8rem !important; color: #64748b !important; font-weight: 600 !important; text-transform: uppercase; }
-    div[data-testid="stMetricValue"] div { font-size: 1.35rem !important; color: #0f172a !important; font-weight: 700 !important; }
-    div.stButton > button { border-radius: 10px; font-weight: 600; min-height: 46px; font-size: 0.95rem; }
+    h1, h2, h3, h4 { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #0f172a; }
+    
+    /* Cartões de Métricas (Dashboard) */
+    div[data-testid="stMetric"] {
+        background: linear-gradient(145deg, #ffffff, #f8fafc);
+        border: 1px solid #e2e8f0;
+        border-radius: 16px;
+        padding: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        margin-bottom: 10px;
+    }
+    div[data-testid="stMetricLabel"] p {
+        font-size: 0.85rem !important;
+        color: #64748b !important;
+        font-weight: 700 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
+    div[data-testid="stMetricValue"] div {
+        font-size: 1.6rem !important;
+        color: #0284c7 !important;
+        font-weight: 800 !important;
+    }
+
+    /* Menu de Navegação (Segmented Control) */
+    div[role="radiogroup"] {
+        background-color: #f1f5f9;
+        border-radius: 14px;
+        padding: 6px;
+        display: flex;
+        justify-content: space-between;
+        gap: 4px;
+        border: 1px solid #e2e8f0;
+    }
+    div[role="radiogroup"] label {
+        background: transparent;
+        border-radius: 10px;
+        padding: 10px 4px;
+        margin: 0 !important;
+        flex: 1;
+        text-align: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    div[role="radiogroup"] label > div:first-child { display: none !important; }
+    div[role="radiogroup"] label[data-checked="true"] {
+        background-color: #ffffff !important;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    }
+    div[role="radiogroup"] label[data-checked="true"] p {
+        color: #0284c7 !important;
+        font-weight: 800 !important;
+    }
+    div[role="radiogroup"] label p {
+        font-size: 0.8rem !important;
+        color: #64748b;
+        font-weight: 600;
+    }
+
+    /* Botões Modernos */
+    div.stButton > button {
+        border-radius: 12px;
+        font-weight: 600;
+        min-height: 50px;
+        font-size: 1rem;
+        transition: all 0.2s;
+    }
+    div.stButton > button[kind="primary"] {
+        background-color: #0284c7;
+        border-color: #0284c7;
+    }
+    div.stButton > button[kind="primary"]:hover {
+        background-color: #0369a1;
+        box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    /* Cartão de Detalhes de Auditoria */
+    .card-detalhe {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 18px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
     </style>
 """, unsafe_allow_html=True)
 
-# 3. BASE DE DADOS EM MEMÓRIA (SIMULAÇÃO ESTÁVEL PARA TCC)
-if "produtos_db" not in st.session_state:
-    st.session_state["produtos_db"] = pd.DataFrame([
-        {"id": 1, "nome": "Lâmpada LED 10W", "preco": 45.50, "quantidade": 100},
-        {"id": 2, "nome": "Fita LED RGB 5m", "preco": 89.90, "quantidade": 50},
-        {"id": 3, "nome": "Spot LED Branco", "preco": 35.00, "quantidade": 75}
-    ])
+# ==========================================
+# 2. CONEXÃO REAL AO SUPABASE
+# ==========================================
+def get_db_connection():
+    return psycopg2.connect(
+        host="aws-0-us-west-2.pooler.supabase.com",
+        port="5432",
+        database="postgres",
+        user="postgres.bfppcxnxqagpesuyjlhe",
+        password="An1bal_19691910@",
+        sslmode="require"
+    )
 
-if "pedidos_db" not in st.session_state:
-    st.session_state["pedidos_db"] = pd.DataFrame([
-        {"id": 101, "cliente": "Miguel Aníbal", "total": 135.40, "status": "Pendente", "data": "2026-09-22 10:00"},
-        {"id": 100, "cliente": "Julia Maria", "total": 89.90, "status": "Enviado", "data": "2026-09-21 15:30"}
-    ])
+@st.cache_data(ttl=5)
+def buscar_dados(query, params=None):
+    try:
+        conn = get_db_connection()
+        df = pd.read_sql(query, conn, params=params) if params else pd.read_sql(query, conn)
+        conn.close()
+        return df
+    except Exception as e:
+        st.error(f"Erro de conexão: {e}")
+        return pd.DataFrame()
 
-if "clientes_db" not in st.session_state:
-    st.session_state["clientes_db"] = pd.DataFrame([
-        {"id": 1, "nome": "Miguel Aníbal", "email": "miguel@email.com", "telefone": "(11) 99999-9999", "ultimo_login": "22/09/2026 09:30"},
-        {"id": 2, "nome": "Julia Maria", "email": "julia@email.com", "telefone": "(11) 98888-8888", "ultimo_login": "21/09/2026 14:15"}
-    ])
+def executar_comando(query, params=None):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(query, params) if params else cursor.execute(query)
+        conn.commit()
+        cursor.close()
+        conn.close()
+        st.cache_data.clear()
+        return True
+    except Exception as e:
+        st.error(f"Erro na operação: {e}")
+        return False
 
-# 4. CONTROLE DE SESSÃO DO ADMIN
+# ==========================================
+# 3. CONTROLE DE AUTENTICAÇÃO
+# ==========================================
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
-# ==========================================
-# ECRÃ DE LOGIN
-# ==========================================
 if not st.session_state["autenticado"]:
     st.markdown("""
-        <div style='text-align: center; margin-top: 1.5rem; margin-bottom: 2rem;'>
-            <div style='font-size: 2.8rem;'>💡</div>
-            <h1 style='font-size: 1.6rem; color: #0F4C81; margin-bottom: 4px;'>JR Iluminação</h1>
-            <p style='color: #64748b; font-size: 0.9rem; margin: 0;'>Painel de Gestão Administrativa</p>
+        <div style='text-align: center; margin-top: 3rem; margin-bottom: 2rem;'>
+            <div style='font-size: 3.5rem; margin-bottom: 10px;'>💡</div>
+            <h1 style='font-size: 1.8rem; color: #0284c7; margin-bottom: 4px;'>JR Iluminação</h1>
+            <p style='color: #64748b; font-size: 0.95rem; margin: 0;'>Acesso Administrativo Restrito</p>
         </div>
     """, unsafe_allow_html=True)
     
-    usuario = st.text_input("Utilizador", placeholder="admin")
+    usuario = st.text_input("Administrador", placeholder="admin")
     senha = st.text_input("Palavra-passe", type="password", placeholder="••••••")
     st.write("")
     
-    if st.button("Entrar no Painel", use_container_width=True, type="primary"):
+    if st.button("Entrar no Sistema", use_container_width=True, type="primary"):
         if usuario == "admin" and senha == "123456":
             st.session_state["autenticado"] = True
             st.rerun()
         else:
-            st.error("Credenciais inválidas. Use admin / 123456")
+            st.error("Credenciais inválidas.")
 
 # ==========================================
-# PAINEL PRINCIPAL
+# 4. PAINEL PRINCIPAL & OPERAÇÕES COMPLETAS
 # ==========================================
 else:
     col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
     with col_logo:
-        st.markdown("<h2 style='margin: 0; font-size: 1.3rem; color: #0F4C81;'>💡 JR Admin</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='margin: 0; font-size: 1.4rem; color: #0284c7;'>💡 JR Admin</h2>", unsafe_allow_html=True)
     with col_logout:
         if st.button("Sair", use_container_width=True):
             st.session_state["autenticado"] = False
@@ -78,37 +185,239 @@ else:
 
     st.write("")
     menu_principal = st.radio("Navegação:", ["📊 Geral", "📦 Produtos", "🛒 Pedidos", "👥 Clientes"], horizontal=True, label_visibility="collapsed")
-    st.divider()
+    st.write("")
 
+    # ----------------------------------------------------
+    # TAB 1: DASHBOARD
+    # ----------------------------------------------------
     if menu_principal == "📊 Geral":
-        st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Resumo em Tempo Real</h4>", unsafe_allow_html=True)
-        faturamento = st.session_state["pedidos_db"]["total"].sum()
+        st.markdown("<h4 style='color: #1e293b; margin-bottom: 16px;'>Visão Geral da Loja</h4>", unsafe_allow_html=True)
+        
+        df_prod = buscar_dados("SELECT SUM(quantidade) as total_estoque FROM produtos;")
+        df_ped = buscar_dados("SELECT COUNT(id) as total_pedidos, SUM(total) as faturamento FROM pedidos;")
+        df_cli = buscar_dados("SELECT COUNT(id) as total_clientes FROM clientes;")
+        
+        estoque_total = df_prod['total_estoque'].iloc[0] if not df_prod.empty and pd.notna(df_prod['total_estoque'].iloc[0]) else 0
+        pedidos_total = df_ped['total_pedidos'].iloc[0] if not df_ped.empty else 0
+        faturamento = df_ped['faturamento'].iloc[0] if not df_ped.empty and pd.notna(df_ped['faturamento'].iloc[0]) else 0
+        clientes_total = df_cli['total_clientes'].iloc[0] if not df_cli.empty else 0
+
         c1, c2 = st.columns(2)
-        c1.metric("Faturamento", f"R$ {float(faturamento):,.2f}")
-        c2.metric("Total Pedidos", str(len(st.session_state["pedidos_db"])))
+        c1.metric("Faturamento", f"R$ {float(faturamento):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        c2.metric("Total Pedidos", str(pedidos_total))
+        
         c3, c4 = st.columns(2)
-        c3.metric("Estoque Total", f'{int(st.session_state["produtos_db"]["quantidade"].sum())} un.')
-        c4.metric("Clientes", str(len(st.session_state["clientes_db"])))
+        c3.metric("Estoque Total", f"{int(estoque_total)} un.")
+        c4.metric("Clientes", str(clientes_total))
 
+    # ----------------------------------------------------
+    # TAB 2: PRODUTOS (COM GESTÃO COMPLETA DE IMAGENS)
+    # ----------------------------------------------------
     elif menu_principal == "📦 Produtos":
-        st.markdown("<h4 style='color: #1e293b; margin-bottom: 8px;'>Catálogo de Produtos</h4>", unsafe_allow_html=True)
-        acao = st.selectbox("Ação:", ["📋 Listar", "➕ Novo Produto"])
-        if acao == "📋 Listar":
-            st.dataframe(st.session_state["produtos_db"], use_container_width=True, hide_index=True)
-        else:
-            p_nome = st.text_input("Nome")
-            p_preco = st.number_input("Preço", min_value=0.01)
-            p_qtd = st.number_input("Estoque", min_value=0)
-            if st.button("Salvar Produto", type="primary", use_container_width=True):
-                novo_df = pd.DataFrame([{"id": len(st.session_state["produtos_db"])+1, "nome": p_nome, "preco": p_preco, "quantidade": p_qtd}])
-                st.session_state["produtos_db"] = pd.concat([st.session_state["produtos_db"], novo_df], ignore_index=True)
-                st.success("Produto salvo!")
-                st.rerun()
+        st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Catálogo & Estoque</h4>", unsafe_allow_html=True)
+        acao_prod = st.selectbox("Selecione a operação:", ["📋 Listar Produtos", "➕ Cadastrar Produto", "✏️ Editar Produto", "🗑️ Excluir Produto"])
+        st.write("")
 
+        if acao_prod == "📋 Listar Produtos":
+            df_produtos = buscar_dados("SELECT id, nome, preco, quantidade, descricao, imagem FROM produtos ORDER BY id DESC")
+            if not df_produtos.empty:
+                termo_busca = st.text_input("🔍 Pesquisar Produto", placeholder="Ex: Lâmpada LED...")
+                if termo_busca:
+                    df_produtos = df_produtos[df_produtos['nome'].str.contains(termo_busca, case=False, na=False)]
+                
+                st.dataframe(df_produtos.rename(columns={"id": "ID", "nome": "Produto", "preco": "Preço (R$)", "quantidade": "Stock", "descricao": "Detalhes", "imagem": "URL Imagem"}), use_container_width=True, hide_index=True)
+                
+                st.markdown("##### 📸 Pré-visualizar Imagem")
+                opcoes_ver = {f"#{r['id']} - {r['nome']}": r['imagem'] for _, r in df_produtos.iterrows()}
+                escolhido_ver = st.selectbox("Escolha um produto:", list(opcoes_ver.keys()))
+                img_url = opcoes_ver[escolhido_ver]
+                
+                if img_url and img_url.strip() != '' and img_url != 'placeholder.jpg':
+                    try:
+                        st.image(img_url, width=250, caption=escolhido_ver)
+                    except:
+                        st.warning("Imagem inválida ou não encontrada.")
+                else:
+                    st.info("Produto sem imagem personalizada.")
+            else:
+                st.info("O catálogo está vazio.")
+
+        elif acao_prod == "➕ Cadastrar Produto":
+            novo_nome = st.text_input("Nome do Produto")
+            novo_preco = st.number_input("Preço de Venda (R$)", min_value=0.01, step=0.50, format="%.2f")
+            nova_qtd = st.number_input("Quantidade em Stock", min_value=0, step=1, value=10)
+            nova_desc = st.text_area("Descrição Técnica", placeholder="Ex: Potência, voltagem, cor da luz...")
+            
+            st.markdown("##### 📷 Imagem do Produto")
+            tipo_envio = st.radio("Como deseja inserir a imagem?", ["Link / URL da Imagem", "Ficheiro do Dispositivo"], horizontal=True)
+            
+            imagem_final = "placeholder.jpg"
+            if tipo_envio == "Ficheiro do Dispositivo":
+                uploaded_file = st.file_uploader("Carregar fotografia:", type=["jpg", "jpeg", "png", "webp"])
+                if uploaded_file:
+                    bytes_data = uploaded_file.read()
+                    base64_str = base64.b64encode(bytes_data).decode()
+                    imagem_final = f"data:{uploaded_file.type};base64,{base64_str}"
+                    st.image(uploaded_file, width=200, caption="Pré-visualização")
+            else:
+                url_digitada = st.text_input("URL pública da imagem", placeholder="https://...")
+                if url_digitada.strip():
+                    imagem_final = url_digitada.strip()
+                    try: st.image(imagem_final, width=200)
+                    except: pass
+            
+            st.write("")
+            if st.button("Gravar Produto", type="primary", use_container_width=True):
+                if novo_nome.strip():
+                    if executar_comando("INSERT INTO produtos (nome, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s)", (novo_nome.strip(), float(novo_preco), int(nova_qtd), nova_desc.strip(), imagem_final)):
+                        st.success("Produto adicionado com sucesso ao catálogo!")
+                        st.rerun()
+                else:
+                    st.warning("O nome do produto é obrigatório.")
+
+        elif acao_prod == "✏️ Editar Produto":
+            df_produtos = buscar_dados("SELECT id, nome, preco, quantidade, descricao, imagem FROM produtos ORDER BY nome ASC")
+            if not df_produtos.empty:
+                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_produtos.iterrows()}
+                prod_id = opcoes[st.selectbox("Selecione o produto para alterar:", list(opcoes.keys()))]
+                prod_atual = df_produtos[df_produtos['id'] == prod_id].iloc[0]
+                
+                e_nome = st.text_input("Nome", value=str(prod_atual['nome']))
+                e_preco = st.number_input("Preço (R$)", min_value=0.01, value=float(prod_atual['preco']), format="%.2f")
+                e_qtd = st.number_input("Stock", min_value=0, value=int(prod_atual['quantidade']))
+                e_desc = st.text_area("Descrição", value=str(prod_atual['descricao'] or ""))
+                
+                st.markdown("##### 📷 Alterar Imagem")
+                img_atual = str(prod_atual['imagem'] or 'placeholder.jpg')
+                nova_img = st.text_input("URL da Nova Imagem (deixe igual para não alterar)", value=img_atual)
+                novo_upload = st.file_uploader("Ou envie uma nova fotografia:", type=["jpg", "png", "webp"])
+                if novo_upload:
+                    bytes_data = novo_upload.read()
+                    nova_img = f"data:{novo_upload.type};base64,{base64.b64encode(bytes_data).decode()}"
+                    st.image(novo_upload, width=150)
+                
+                st.write("")
+                if st.button("Salvar Alterações", type="primary", use_container_width=True):
+                    if executar_comando("UPDATE produtos SET nome=%s, preco=%s, quantidade=%s, descricao=%s, imagem=%s WHERE id=%s", (e_nome.strip(), float(e_preco), int(e_qtd), e_desc.strip(), nova_img, prod_id)):
+                        st.success("Produto atualizado!")
+                        st.rerun()
+            else:
+                st.info("Nenhum produto disponível.")
+
+        elif acao_prod == "🗑️ Excluir Produto":
+            df_produtos = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
+            if not df_produtos.empty:
+                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_produtos.iterrows()}
+                del_id = opcoes[st.selectbox("Escolha o produto para remover:", list(opcoes.keys()))]
+                if st.button("Confirmar Exclusão", type="primary", use_container_width=True):
+                    if executar_comando("DELETE FROM produtos WHERE id = %s", (del_id,)):
+                        st.success("Removido com sucesso.")
+                        st.rerun()
+
+    # ----------------------------------------------------
+    # TAB 3: PEDIDOS (AUDITORIA E STATUS)
+    # ----------------------------------------------------
     elif menu_principal == "🛒 Pedidos":
-        st.markdown("<h4 style='color: #1e293b; margin-bottom: 8px;'>Gestão de Pedidos</h4>", unsafe_allow_html=True)
-        st.dataframe(st.session_state["pedidos_db"], use_container_width=True, hide_index=True)
+        st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Gestão Logística e Encomendas</h4>", unsafe_allow_html=True)
+        acao_ped = st.selectbox("Operação:", ["📋 Painel Geral de Pedidos", "🔍 Auditoria Detalhada de Compra", "🔄 Atualizar Status de Envio"])
+        st.write("")
 
+        if acao_ped == "📋 Painel Geral de Pedidos":
+            pedidos = buscar_dados("""
+                SELECT p.id, c.nome as cliente, p.total, p.status, TO_CHAR(p.data_pedido, 'DD/MM/YYYY HH24:MI') as data 
+                FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC
+            """)
+            if not pedidos.empty:
+                st.dataframe(pedidos.rename(columns={"id": "Nº", "cliente": "Cliente", "total": "Total (R$)", "status": "Status", "data": "Realizado em"}), use_container_width=True, hide_index=True)
+            else:
+                st.info("Ainda não há encomendas.")
+
+        elif acao_ped == "🔍 Auditoria Detalhada de Compra":
+            lista = buscar_dados("SELECT p.id, c.nome, p.total FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
+            if not lista.empty:
+                ped_id = st.selectbox("Selecione o recibo da encomenda:", list({f"Nº {r['id']} - {r['nome']} (R$ {r['total']})": r['id'] for _, r in lista.iterrows()}.values()), format_func=lambda x: f"Pedido #{x}")
+                
+                info = buscar_dados("SELECT p.id, p.total, p.status, p.data_pedido, c.nome, c.email, c.telefone FROM pedidos p JOIN clientes c ON p.cliente_id = c.id WHERE p.id = %s", (ped_id,))
+                if not info.empty:
+                    p = info.iloc[0]
+                    st.markdown(f"""
+                        <div class="card-detalhe">
+                            <h4 style="margin:0 0 8px 0; color:#0284c7;">🧾 Fatura #{p['id']}</h4>
+                            <p style="margin:2px 0;"><strong>Status Operacional:</strong> {str(p['status']).upper()}</p>
+                            <p style="margin:2px 0;"><strong>Data de Registo:</strong> {p['data_pedido']}</p>
+                            <hr style="margin:12px 0; border:0; border-top:1px dashed #cbd5e1;">
+                            <h5 style="margin:0 0 8px 0; color:#334155;">👤 Comprador:</h5>
+                            <p style="margin:2px 0;"><strong>Nome:</strong> {p['nome']}</p>
+                            <p style="margin:2px 0;"><strong>Contacto:</strong> {p['telefone'] or 'N/A'} | <strong>E-mail:</strong> {p['email']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+                    itens = buscar_dados("""
+                        SELECT pr.nome as produto, ip.quantidade, ip.preco_unitario, (ip.quantidade * ip.preco_unitario) as subtotal
+                        FROM itens_pedido ip JOIN produtos pr ON ip.produto_id = pr.id WHERE ip.pedido_id = %s
+                    """, (ped_id,))
+                    st.markdown("##### 📦 Relatório de Itens")
+                    if not itens.empty:
+                        st.dataframe(itens.rename(columns={"produto": "Item", "quantidade": "Qtd", "preco_unitario": "Preço Unit.", "subtotal": "Subtotal"}), use_container_width=True, hide_index=True)
+                        st.success(f"Valor Final Faturado: R$ {float(p['total']):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                    else:
+                        st.warning("Itens não encontrados na tabela de relação.")
+
+        elif acao_ped == "🔄 Atualizar Status de Envio":
+            pendentes = buscar_dados("SELECT id, status FROM pedidos ORDER BY id DESC")
+            if not pendentes.empty:
+                opcoes = {f"#{r['id']} (Atual: {r['status']})": r['id'] for _, r in pendentes.iterrows()}
+                ped_id = opcoes[st.selectbox("Indique o pedido:", list(opcoes.keys()))]
+                novo_status = st.selectbox("Mover para:", ["Pendente", "Em processamento", "Enviado", "Entregue", "Concluído", "Cancelado"])
+                
+                st.write("")
+                if st.button("Gravar Alteração Logística", type="primary", use_container_width=True):
+                    # O Supabase aceita o que enviar se não houver constraint restritiva. 
+                    if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
+                        st.success("Status atualizado na base de dados!")
+                        st.rerun()
+
+    # ----------------------------------------------------
+    # TAB 4: CLIENTES (SEGURANÇA E AUDITORIA DE LOGIN)
+    # ----------------------------------------------------
     elif menu_principal == "👥 Clientes":
-        st.markdown("<h4 style='color: #1e293b; margin-bottom: 8px;'>Auditoria de Clientes</h4>", unsafe_allow_html=True)
-        st.dataframe(st.session_state["clientes_db"], use_container_width=True, hide_index=True)
+        st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Controlo e Auditoria de Contas</h4>", unsafe_allow_html=True)
+        acao_cli = st.selectbox("Painel de Controlo:", ["📋 Listar Base de Clientes", "➕ Registar Cliente Manualmente", "📜 Histórico de Consumo"])
+        st.write("")
+
+        if acao_cli == "📋 Listar Base de Clientes":
+            df_clientes = buscar_dados("""
+                SELECT c.id, c.nome, c.email, c.telefone, 
+                       COALESCE(TO_CHAR(a.ultimo_login, 'DD/MM/YYYY HH24:MI'), 'Sem Registo') as ultimo_login
+                FROM clientes c LEFT JOIN usuarios u ON u.email = c.email LEFT JOIN autenticacao a ON a.usuario_id = u.id ORDER BY c.id DESC
+            """)
+            if not df_clientes.empty:
+                termo = st.text_input("🔍 Procurar E-mail ou Nome")
+                if termo:
+                    df_clientes = df_clientes[df_clientes['nome'].str.contains(termo, case=False) | df_clientes['email'].str.contains(termo, case=False)]
+                st.dataframe(df_clientes.rename(columns={"id": "ID", "nome": "Nome Completo", "email": "Conta de E-mail", "telefone": "Contacto", "ultimo_login": "Auditoria Últ. Login"}), use_container_width=True, hide_index=True)
+
+        elif acao_cli == "➕ Registar Cliente Manualmente":
+            nome_cli = st.text_input("Nome do Cliente")
+            email_cli = st.text_input("E-mail Principal")
+            tel_cli = st.text_input("Contacto Móvel")
+            if st.button("Salvar Ficha de Cliente", type="primary", use_container_width=True):
+                if nome_cli and email_cli:
+                    if executar_comando("INSERT INTO clientes (nome, email, telefone) VALUES (%s, %s, %s)", (nome_cli, email_cli, tel_cli)):
+                        st.success("Conta registada com sucesso.")
+                        st.rerun()
+                else:
+                    st.warning("Nome e E-mail são obrigatórios.")
+
+        elif acao_cli == "📜 Histórico de Consumo":
+            df_clientes = buscar_dados("SELECT id, nome FROM clientes ORDER BY nome ASC")
+            if not df_clientes.empty:
+                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_clientes.iterrows()}
+                cli_id = opcoes[st.selectbox("Perfil do Cliente:", list(opcoes.keys()))]
+                pedidos_cli = buscar_dados("SELECT id, total, status, TO_CHAR(data_pedido, 'DD/MM/YYYY') as data FROM pedidos WHERE cliente_id = %s ORDER BY id DESC", (cli_id,))
+                
+                if not pedidos_cli.empty:
+                    st.markdown(f"<div style='padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px;'><strong>Volume de Negócio Acumulado:</strong> R$ {float(pedidos_cli['total'].sum()):,.2f}</div>", unsafe_allow_html=True)
+                    st.dataframe(pedidos_cli.rename(columns={"id": "Nº Fatura", "total": "Montante", "status": "Situação", "data": "Realizado em"}), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Não existem transações financeiras associadas a este perfil.")

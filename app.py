@@ -288,12 +288,12 @@ if not st.session_state["autenticado"]:
         </div>
     """, unsafe_allow_html=True)
     
-    usuario = st.text_input("Usuário", placeholder="admin")
-    senha = st.text_input("Senha", type="password", placeholder="••••••")
+    usuario = st.text_input("Insira seu usuário", placeholder="Insira seu usuário")
+    senha = st.text_input("Insira sua senha", type="password", placeholder="Insira sua senha")
     st.write("")
     
     if st.button("Aceder ao Painel", use_container_width=True, type="primary"):
-        if usuario == "admin" and senha == "123456":
+        if usuario.strip() == "admin" and senha.strip() == "123456":
             st.session_state["autenticado"] = True
             st.rerun()
         else:

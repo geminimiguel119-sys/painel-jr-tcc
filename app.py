@@ -195,7 +195,7 @@ else:
         
         df_prod = buscar_dados("SELECT SUM(quantidade) as total_estoque FROM produtos;")
         df_ped = buscar_dados("SELECT COUNT(id) as total_pedidos, SUM(total) as faturamento FROM pedidos;")
-        df_cli = buscar_dados("SELECT COUNT(id) as total_clientes FROM clientes;")
+        df_cli = buscar_dados("SELECT COUNT(id) as total_clientes FROM usuarios WHERE role='cliente';")
         
         estoque_total = df_prod['total_estoque'].iloc[0] if not df_prod.empty and pd.notna(df_prod['total_estoque'].iloc[0]) else 0
         pedidos_total = df_ped['total_pedidos'].iloc[0] if not df_ped.empty else 0
@@ -372,7 +372,6 @@ else:
                 
                 st.write("")
                 if st.button("Gravar Alteração Logística", type="primary", use_container_width=True):
-                    # O Supabase aceita o que enviar se não houver constraint restritiva. 
                     if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
                         st.success("Status atualizado na base de dados!")
                         st.rerun()
@@ -382,29 +381,60 @@ else:
     # ----------------------------------------------------
     elif menu_principal == "👥 Clientes":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Controlo e Auditoria de Contas</h4>", unsafe_allow_html=True)
-        acao_cli = st.selectbox("Painel de Controlo:", ["📋 Listar Base de Clientes", "➕ Registar Cliente Manualmente", "📜 Histórico de Consumo"])
+        
+        acao_cli = st.selectbox("Painel de Controlo:", [
+            "📋 Listar Base de Clientes", 
+            "✅ Aprovar Novos Registos", 
+            "➕ Registar Cliente Manualmente", 
+            "📜 Histórico de Consumo"
+        ])
         st.write("")
 
         if acao_cli == "📋 Listar Base de Clientes":
             df_clientes = buscar_dados("""
-                SELECT c.id, c.nome, c.email, c.telefone, 
+                SELECT u.id, u.nome, u.email, u.status,
                        COALESCE(TO_CHAR(a.ultimo_login, 'DD/MM/YYYY HH24:MI'), 'Sem Registo') as ultimo_login
-                FROM clientes c LEFT JOIN usuarios u ON u.email = c.email LEFT JOIN autenticacao a ON a.usuario_id = u.id ORDER BY c.id DESC
+                FROM usuarios u 
+                LEFT JOIN autenticacao a ON a.usuario_id = u.id 
+                WHERE u.role = 'cliente'
+                ORDER BY u.id DESC
             """)
             if not df_clientes.empty:
                 termo = st.text_input("🔍 Procurar E-mail ou Nome")
                 if termo:
                     df_clientes = df_clientes[df_clientes['nome'].str.contains(termo, case=False) | df_clientes['email'].str.contains(termo, case=False)]
-                st.dataframe(df_clientes.rename(columns={"id": "ID", "nome": "Nome Completo", "email": "Conta de E-mail", "telefone": "Contacto", "ultimo_login": "Auditoria Últ. Login"}), use_container_width=True, hide_index=True)
+                
+                def colorir_status(val):
+                    color = '#b91c1c' if val == 'Pendente' else '#15803d'
+                    return f'color: {color}; font-weight: bold;'
+                
+                st.dataframe(df_clientes.rename(columns={"id": "ID", "nome": "Nome Completo", "email": "Conta de E-mail", "status": "Situação", "ultimo_login": "Auditoria Últ. Login"}).style.map(colorir_status, subset=['Situação']), use_container_width=True, hide_index=True)
+            else:
+                st.info("Nenhuma conta registada.")
+
+        elif acao_cli == "✅ Aprovar Novos Registos":
+            pendentes = buscar_dados("SELECT id, nome, email FROM usuarios WHERE status = 'Pendente' AND role = 'cliente'")
+            
+            if not pendentes.empty:
+                st.warning(f"⚠️ Tem {len(pendentes)} conta(s) a aguardar aprovação de segurança.")
+                opcoes_pendentes = {f"#{r['id']} - {r['nome']} ({r['email']})": r['id'] for _, r in pendentes.iterrows()}
+                
+                user_id_aprovar = opcoes_pendentes[st.selectbox("Selecione a conta para rever:", list(opcoes_pendentes.keys()))]
+                
+                if st.button("Liberar Acesso (Aprovar)", type="primary", use_container_width=True):
+                    if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (user_id_aprovar,)):
+                        st.success("Conta aprovada com sucesso! O cliente já pode iniciar sessão na loja.")
+                        st.rerun()
+            else:
+                st.success("Tudo em dia! Não há novos clientes à espera de aprovação.")
 
         elif acao_cli == "➕ Registar Cliente Manualmente":
             nome_cli = st.text_input("Nome do Cliente")
             email_cli = st.text_input("E-mail Principal")
-            tel_cli = st.text_input("Contacto Móvel")
             if st.button("Salvar Ficha de Cliente", type="primary", use_container_width=True):
                 if nome_cli and email_cli:
-                    if executar_comando("INSERT INTO clientes (nome, email, telefone) VALUES (%s, %s, %s)", (nome_cli, email_cli, tel_cli)):
-                        st.success("Conta registada com sucesso.")
+                    if executar_comando("INSERT INTO usuarios (nome, email, role, status) VALUES (%s, %s, 'cliente', 'Aprovado')", (nome_cli, email_cli)):
+                        st.success("Conta registada e já aprovada com sucesso.")
                         st.rerun()
                 else:
                     st.warning("Nome e E-mail são obrigatórios.")

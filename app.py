@@ -2,6 +2,8 @@ import base64
 import psycopg2
 import streamlit as st
 import pandas as pd
+import urllib.parse
+import urllib.request
 
 # ==========================================
 # 1. CONFIGURAÇÃO E DESIGN MOBILE-FIRST
@@ -41,11 +43,9 @@ st.markdown("""
     div.stButton > button[kind="primary"] { background-color: #0284c7; border-color: #0284c7; }
     div.stButton > button[kind="primary"]:hover { background-color: #0369a1; box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3); }
 
-    /* Correção de Contraste para Auditoria (Teste 5) */
     .card-detalhe { background: #ffffff !important; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 16px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
     .card-detalhe p, .card-detalhe strong, .card-detalhe h4, .card-detalhe h5, .card-detalhe span { color: #0f172a !important; }
     
-    /* Cartões Mobile para Listagens (Obs 3) */
     .mobile-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
     .mobile-card h4 { margin: 0 0 8px 0; color: #0284c7; font-size: 1.15rem; }
     .mobile-card p { margin: 4px 0; color: #475569; font-size: 0.95rem; }
@@ -53,7 +53,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXÃO SUPABASE (FUSO DE BRASÍLIA)
+# 2. CONEXÃO AO SUPABASE (GMT-3)
 # ==========================================
 def get_db_connection():
     conn = psycopg2.connect(
@@ -65,7 +65,7 @@ def get_db_connection():
         sslmode="require"
     )
     cursor = conn.cursor()
-    cursor.execute("SET TIME ZONE 'America/Sao_Paulo';") # Teste 4: GMT-3
+    cursor.execute("SET TIME ZONE 'America/Sao_Paulo';")
     conn.commit()
     cursor.close()
     return conn
@@ -93,6 +93,17 @@ def executar_comando(query, params=None):
         return True
     except Exception as e:
         return False
+
+def enviar_telegram_aviso(msg):
+    token = "8700166269:AAE43sggx-efi75G0N97-ZHHrJf0xMye4m4"
+    chat_id = "5034813131"
+    try:
+        url = f"https://api.telegram.org/bot{token}/sendMessage"
+        data = urllib.parse.urlencode({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}).encode()
+        req = urllib.request.Request(url, data=data)
+        urllib.request.urlopen(req, timeout=4)
+    except:
+        pass
 
 executar_comando("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Pendente';")
 executar_comando("ALTER TABLE produtos ADD COLUMN IF NOT EXISTS categoria VARCHAR(50) DEFAULT 'Outros';")
@@ -139,6 +150,7 @@ else:
     menu_principal = st.radio("Navegação:", ["📊 Geral", "📦 Produtos", "🛒 Pedidos", "👥 Clientes"], horizontal=True, label_visibility="collapsed")
     st.write("")
 
+    # TAB 1: GERAL (COM GRÁFICOS DINÂMICOS - MELHORIA 4)
     if menu_principal == "📊 Geral":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 16px;'>Visão Geral da Loja</h4>", unsafe_allow_html=True)
         
@@ -158,6 +170,26 @@ else:
         c3.metric("Estoque Total", f"{int(estoque_total)} un.")
         c4.metric("Clientes", str(clientes_total))
 
+        st.markdown("---")
+        st.markdown("##### 📈 Desempenho e Métricas Visuais")
+
+        # Gráfico 1: Vendas por Data
+        df_vendas_data = buscar_dados("SELECT TO_CHAR(data_pedido, 'DD/MM') as dia, SUM(total) as total_dia FROM pedidos GROUP BY dia ORDER BY dia ASC LIMIT 7")
+        if not df_vendas_data.empty:
+            df_vendas_data = df_vendas_data.set_index('dia')
+            st.caption("Faturamento Recente (R$):")
+            st.bar_chart(df_vendas_data['total_dia'])
+        else:
+            st.info("Ainda não há histórico suficiente para o gráfico de faturamento.")
+
+        # Gráfico 2: Estoque por Categoria
+        df_cat_estoque = buscar_dados("SELECT categoria, SUM(quantidade) as estoque FROM produtos GROUP BY categoria")
+        if not df_cat_estoque.empty:
+            df_cat_estoque = df_cat_estoque.set_index('categoria')
+            st.caption("Distribuição de Estoque por Categoria (unidades):")
+            st.bar_chart(df_cat_estoque['estoque'])
+
+    # TAB 2: PRODUTOS
     elif menu_principal == "📦 Produtos":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Catálogo & Estoque</h4>", unsafe_allow_html=True)
         acao_prod = st.selectbox("Selecione a operação:", ["📋 Listar Produtos", "➕ Cadastrar Produto", "✏️ Editar Produto", "🗑️ Excluir Produto"])
@@ -170,7 +202,6 @@ else:
                 if termo_busca:
                     df_produtos = df_produtos[df_produtos['nome'].str.contains(termo_busca, case=False, na=False)]
                 
-                # Obs 3: Cartões em vez de Tabela apertada
                 for _, r in df_produtos.iterrows():
                     st.markdown(f"""
                         <div class="mobile-card">
@@ -212,7 +243,6 @@ else:
             st.write("")
             if st.button("Gravar Produto", type="primary", use_container_width=True):
                 if novo_nome.strip():
-                    # Teste 6: Impede Duplicados
                     existe = buscar_dados("SELECT id FROM produtos WHERE LOWER(nome) = LOWER(%s)", (novo_nome.strip(),))
                     if not existe.empty:
                         st.error("⚠️ Já existe um produto registado com este nome.")
@@ -260,9 +290,10 @@ else:
                         st.success("Removido.")
                         st.rerun()
 
+    # TAB 3: PEDIDOS (COM EXPORTAÇÃO CSV - MELHORIA 4)
     elif menu_principal == "🛒 Pedidos":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Gestão Logística</h4>", unsafe_allow_html=True)
-        acao_ped = st.selectbox("Operação:", ["📋 Painel Geral", "🔍 Auditoria de Compra", "🔄 Atualizar Status"])
+        acao_ped = st.selectbox("Operação:", ["📋 Painel Geral", "🔍 Auditoria de Compra", "🔄 Atualizar Status", "📥 Exportar Relatório CSV"])
         st.write("")
 
         if acao_ped == "📋 Painel Geral":
@@ -286,7 +317,6 @@ else:
                 info = buscar_dados("SELECT p.id, p.total, p.status, p.data_pedido, c.nome, c.email, c.telefone FROM pedidos p JOIN clientes c ON p.cliente_id = c.id WHERE p.id = %s", (ped_id,))
                 if not info.empty:
                     p = info.iloc[0]
-                    # Teste 5: Card de auditoria corrigido
                     st.markdown(f"""
                         <div class="card-detalhe">
                             <h4 style="margin:0 0 8px 0; color:#0284c7 !important;">🧾 Fatura #{p['id']}</h4>
@@ -316,6 +346,23 @@ else:
                         st.success("Atualizado!")
                         st.rerun()
 
+        elif acao_ped == "📥 Exportar Relatório CSV":
+            st.markdown("##### 📥 Exportar Base Completa de Pedidos")
+            df_export = buscar_dados("SELECT p.id, c.nome as cliente, c.email, p.total, p.status, p.data_pedido FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
+            if not df_export.empty:
+                csv_data = df_export.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📄 Descarregar Ficheiro CSV",
+                    data=csv_data,
+                    file_name="relatorio_pedidos_jr.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                st.info("Não existem dados para exportação.")
+
+    # TAB 4: CLIENTES (COM NOTIFICAÇÃO TELEGRAM DE APROVAÇÃO - MELHORIA 2)
     elif menu_principal == "👥 Clientes":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Auditoria de Contas</h4>", unsafe_allow_html=True)
         acao_cli = st.selectbox("Painel:", ["📋 Base de Clientes", "✅ Aprovar Registros", "➕ Novo Cliente", "📜 Histórico"])
@@ -327,7 +374,6 @@ else:
                 termo = st.text_input("🔍 Procurar E-mail ou Nome")
                 if termo: df_clientes = df_clientes[df_clientes['nome'].str.contains(termo, case=False) | df_clientes['email'].str.contains(termo, case=False)]
                 
-                # Obs 3: Cards Mobile
                 for _, r in df_clientes.iterrows():
                     cor = "#15803d" if r['status'] == "Aprovado" else "#b91c1c"
                     st.markdown(f"""
@@ -347,9 +393,14 @@ else:
                 st.warning(f"⚠️ {len(pendentes)} conta(s) aguardando aprovação.")
                 opcoes = {f"#{r['id']} - {r['nome']} ({r['email']})": r['id'] for _, r in pendentes.iterrows()}
                 user_id = opcoes[st.selectbox("Selecionar conta:", list(opcoes.keys()))]
+                
                 if st.button("Liberar Acesso", type="primary", use_container_width=True):
+                    # Localiza os dados para a mensagem do Telegram
+                    reg = pendentes[pendentes['id'] == user_id].iloc[0]
                     if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (user_id,)):
-                        st.success("Conta aprovada!")
+                        msg = f"✅ *Conta Aprovada pelo Admin no Telemóvel!*\n\n👤 *Cliente:* {reg['nome']}\n📧 *E-mail:* {reg['email']}\n🔓 Acesso autorizado."
+                        enviar_telegram_aviso(msg)
+                        st.success("Conta aprovada e notificação enviada!")
                         st.rerun()
             else:
                 st.success("Tudo em dia! Sem pendências.")

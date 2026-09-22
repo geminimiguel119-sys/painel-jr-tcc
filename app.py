@@ -42,7 +42,7 @@ st.markdown("""
         font-weight: 800 !important;
     }
 
-    /* Menu de Navegação (Segmented Control) */
+    /* Menu de Navegação */
     div[role="radiogroup"] {
         background-color: #f1f5f9;
         border-radius: 14px;
@@ -95,23 +95,38 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
     }
 
-    /* Cartão de Detalhes de Auditoria */
+    /* Correção de Contraste para Auditoria (Teste 5) */
     .card-detalhe {
-        background: #ffffff;
+        background: #ffffff !important;
         border: 1px solid #e2e8f0;
         border-radius: 12px;
         padding: 18px;
         margin-bottom: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.04);
     }
+    .card-detalhe p, .card-detalhe strong, .card-detalhe h4, .card-detalhe h5, .card-detalhe span {
+        color: #0f172a !important; 
+    }
+    
+    /* Cartões Mobile para Listagens */
+    .mobile-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 16px;
+        margin-bottom: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+    }
+    .mobile-card h4 { margin: 0 0 8px 0; color: #0284c7; font-size: 1.15rem; }
+    .mobile-card p { margin: 4px 0; color: #475569; font-size: 0.95rem; }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXÃO REAL AO SUPABASE
+# 2. CONEXÃO AO SUPABASE (COM FUSO DE BRASÍLIA)
 # ==========================================
 def get_db_connection():
-    return psycopg2.connect(
+    conn = psycopg2.connect(
         host="aws-0-us-west-2.pooler.supabase.com",
         port="5432",
         database="postgres",
@@ -119,6 +134,12 @@ def get_db_connection():
         password="An1bal_19691910@",
         sslmode="require"
     )
+    # Configura Fuso Horário GMT-3 (Teste 4)
+    cursor = conn.cursor()
+    cursor.execute("SET TIME ZONE 'America/Sao_Paulo';")
+    conn.commit()
+    cursor.close()
+    return conn
 
 @st.cache_data(ttl=5)
 def buscar_dados(query, params=None):
@@ -144,6 +165,10 @@ def executar_comando(query, params=None):
     except Exception as e:
         st.error(f"Erro na operação: {e}")
         return False
+
+# Garante que as colunas essenciais existem sem travar o painel
+executar_comando("ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'Pendente';")
+executar_comando("ALTER TABLE produtos ADD COLUMN IF NOT EXISTS categoria VARCHAR(50) DEFAULT 'Outros';")
 
 # ==========================================
 # 3. CONTROLE DE AUTENTICAÇÃO
@@ -172,7 +197,7 @@ if not st.session_state["autenticado"]:
             st.error("Credenciais inválidas.")
 
 # ==========================================
-# 4. PAINEL PRINCIPAL & OPERAÇÕES COMPLETAS
+# 4. PAINEL PRINCIPAL & OPERAÇÕES
 # ==========================================
 else:
     col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
@@ -211,7 +236,7 @@ else:
         c4.metric("Clientes", str(clientes_total))
 
     # ----------------------------------------------------
-    # TAB 2: PRODUTOS (COM GESTÃO COMPLETA DE IMAGENS)
+    # TAB 2: PRODUTOS (COM PREVENÇÃO DE DUPLICAÇÃO E CARTÕES)
     # ----------------------------------------------------
     elif menu_principal == "📦 Produtos":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Catálogo & Estoque</h4>", unsafe_allow_html=True)
@@ -219,13 +244,21 @@ else:
         st.write("")
 
         if acao_prod == "📋 Listar Produtos":
-            df_produtos = buscar_dados("SELECT id, nome, preco, quantidade, descricao, imagem FROM produtos ORDER BY id DESC")
+            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, imagem FROM produtos ORDER BY id DESC")
             if not df_produtos.empty:
                 termo_busca = st.text_input("🔍 Pesquisar Produto", placeholder="Ex: Lâmpada LED...")
                 if termo_busca:
                     df_produtos = df_produtos[df_produtos['nome'].str.contains(termo_busca, case=False, na=False)]
                 
-                st.dataframe(df_produtos.rename(columns={"id": "ID", "nome": "Produto", "preco": "Preço (R$)", "quantidade": "Stock", "descricao": "Detalhes", "imagem": "URL Imagem"}), use_container_width=True, hide_index=True)
+                # Exibição em Cartões (Otimizado para Mobile)
+                for _, r in df_produtos.iterrows():
+                    st.markdown(f"""
+                        <div class="mobile-card">
+                            <h4>{r['nome']}</h4>
+                            <p><strong>Categoria:</strong> {r.get('categoria', 'Outros')}</p>
+                            <p><strong>Preço:</strong> R$ {float(r['preco']):,.2f} | <strong>Estoque:</strong> {r['quantidade']} un.</p>
+                        </div>
+                    """, unsafe_allow_html=True)
                 
                 st.markdown("##### 📸 Pré-visualizar Imagem")
                 opcoes_ver = {f"#{r['id']} - {r['nome']}": r['imagem'] for _, r in df_produtos.iterrows()}
@@ -237,13 +270,12 @@ else:
                         st.image(img_url, width=250, caption=escolhido_ver)
                     except:
                         st.warning("Imagem inválida ou não encontrada.")
-                else:
-                    st.info("Produto sem imagem personalizada.")
             else:
                 st.info("O catálogo está vazio.")
 
         elif acao_prod == "➕ Cadastrar Produto":
             novo_nome = st.text_input("Nome do Produto")
+            nova_cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Spots", "Plafons", "Outros"])
             novo_preco = st.number_input("Preço de Venda (R$)", min_value=0.01, step=0.50, format="%.2f")
             nova_qtd = st.number_input("Quantidade em Stock", min_value=0, step=1, value=10)
             nova_desc = st.text_area("Descrição Técnica", placeholder="Ex: Potência, voltagem, cor da luz...")
@@ -269,20 +301,32 @@ else:
             st.write("")
             if st.button("Gravar Produto", type="primary", use_container_width=True):
                 if novo_nome.strip():
-                    if executar_comando("INSERT INTO produtos (nome, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s)", (novo_nome.strip(), float(novo_preco), int(nova_qtd), nova_desc.strip(), imagem_final)):
-                        st.success("Produto adicionado com sucesso ao catálogo!")
-                        st.rerun()
+                    # TESTE 6: Impede cadastros duplicados
+                    existe = buscar_dados("SELECT id FROM produtos WHERE LOWER(nome) = LOWER(%s)", (novo_nome.strip(),))
+                    if not existe.empty:
+                        st.error("⚠️ Já existe um produto registado com este nome. Verifique o catálogo.")
+                    else:
+                        if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s, %s)", 
+                                            (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd), nova_desc.strip(), imagem_final)):
+                            st.success("Produto adicionado com sucesso ao catálogo!")
+                            st.rerun()
                 else:
                     st.warning("O nome do produto é obrigatório.")
 
         elif acao_prod == "✏️ Editar Produto":
-            df_produtos = buscar_dados("SELECT id, nome, preco, quantidade, descricao, imagem FROM produtos ORDER BY nome ASC")
+            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, descricao, imagem FROM produtos ORDER BY nome ASC")
             if not df_produtos.empty:
                 opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_produtos.iterrows()}
                 prod_id = opcoes[st.selectbox("Selecione o produto para alterar:", list(opcoes.keys()))]
                 prod_atual = df_produtos[df_produtos['id'] == prod_id].iloc[0]
                 
                 e_nome = st.text_input("Nome", value=str(prod_atual['nome']))
+                
+                categorias_lista = ["Lâmpadas", "Fitas LED", "Spots", "Plafons", "Outros"]
+                cat_atual = str(prod_atual.get('categoria', 'Outros'))
+                idx_cat = categorias_lista.index(cat_atual) if cat_atual in categorias_lista else 4
+                e_cat = st.selectbox("Categoria", categorias_lista, index=idx_cat)
+
                 e_preco = st.number_input("Preço (R$)", min_value=0.01, value=float(prod_atual['preco']), format="%.2f")
                 e_qtd = st.number_input("Stock", min_value=0, value=int(prod_atual['quantidade']))
                 e_desc = st.text_area("Descrição", value=str(prod_atual['descricao'] or ""))
@@ -298,7 +342,8 @@ else:
                 
                 st.write("")
                 if st.button("Salvar Alterações", type="primary", use_container_width=True):
-                    if executar_comando("UPDATE produtos SET nome=%s, preco=%s, quantidade=%s, descricao=%s, imagem=%s WHERE id=%s", (e_nome.strip(), float(e_preco), int(e_qtd), e_desc.strip(), nova_img, prod_id)):
+                    if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, descricao=%s, imagem=%s WHERE id=%s", 
+                                        (e_nome.strip(), e_cat, float(e_preco), int(e_qtd), e_desc.strip(), nova_img, prod_id)):
                         st.success("Produto atualizado!")
                         st.rerun()
             else:
@@ -315,7 +360,7 @@ else:
                         st.rerun()
 
     # ----------------------------------------------------
-    # TAB 3: PEDIDOS (AUDITORIA E STATUS)
+    # TAB 3: PEDIDOS (AUDITORIA COM CONTRASTE CORRIGIDO)
     # ----------------------------------------------------
     elif menu_principal == "🛒 Pedidos":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Gestão Logística e Encomendas</h4>", unsafe_allow_html=True)
@@ -328,7 +373,14 @@ else:
                 FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC
             """)
             if not pedidos.empty:
-                st.dataframe(pedidos.rename(columns={"id": "Nº", "cliente": "Cliente", "total": "Total (R$)", "status": "Status", "data": "Realizado em"}), use_container_width=True, hide_index=True)
+                for _, r in pedidos.iterrows():
+                    st.markdown(f"""
+                        <div class="mobile-card">
+                            <h4>📦 Pedido #{r['id']}</h4>
+                            <p><strong>Cliente:</strong> {r['cliente']} | <strong>Valor:</strong> R$ {float(r['total']):,.2f}</p>
+                            <p><strong>Status:</strong> {r['status']} | <strong>Data:</strong> {r['data']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
             else:
                 st.info("Ainda não há encomendas.")
 
@@ -340,13 +392,14 @@ else:
                 info = buscar_dados("SELECT p.id, p.total, p.status, p.data_pedido, c.nome, c.email, c.telefone FROM pedidos p JOIN clientes c ON p.cliente_id = c.id WHERE p.id = %s", (ped_id,))
                 if not info.empty:
                     p = info.iloc[0]
+                    # TESTE 5: CSS Aplicado força o texto a ficar escuro e legível
                     st.markdown(f"""
                         <div class="card-detalhe">
-                            <h4 style="margin:0 0 8px 0; color:#0284c7;">🧾 Fatura #{p['id']}</h4>
+                            <h4 style="margin:0 0 8px 0; color:#0284c7 !important;">🧾 Fatura #{p['id']}</h4>
                             <p style="margin:2px 0;"><strong>Status Operacional:</strong> {str(p['status']).upper()}</p>
                             <p style="margin:2px 0;"><strong>Data de Registo:</strong> {p['data_pedido']}</p>
                             <hr style="margin:12px 0; border:0; border-top:1px dashed #cbd5e1;">
-                            <h5 style="margin:0 0 8px 0; color:#334155;">👤 Comprador:</h5>
+                            <h5 style="margin:0 0 8px 0; color:#334155 !important;">👤 Comprador:</h5>
                             <p style="margin:2px 0;"><strong>Nome:</strong> {p['nome']}</p>
                             <p style="margin:2px 0;"><strong>Contacto:</strong> {p['telefone'] or 'N/A'} | <strong>E-mail:</strong> {p['email']}</p>
                         </div>
@@ -377,7 +430,7 @@ else:
                         st.rerun()
 
     # ----------------------------------------------------
-    # TAB 4: CLIENTES (SEGURANÇA E AUDITORIA DE LOGIN)
+    # TAB 4: CLIENTES (SEGURANÇA E CARTÕES MOBILE)
     # ----------------------------------------------------
     elif menu_principal == "👥 Clientes":
         st.markdown("<h4 style='color: #1e293b; margin-bottom: 12px;'>Controlo e Auditoria de Contas</h4>", unsafe_allow_html=True)
@@ -404,11 +457,17 @@ else:
                 if termo:
                     df_clientes = df_clientes[df_clientes['nome'].str.contains(termo, case=False) | df_clientes['email'].str.contains(termo, case=False)]
                 
-                def colorir_status(val):
-                    color = '#b91c1c' if val == 'Pendente' else '#15803d'
-                    return f'color: {color}; font-weight: bold;'
-                
-                st.dataframe(df_clientes.rename(columns={"id": "ID", "nome": "Nome Completo", "email": "Conta de E-mail", "status": "Situação", "ultimo_login": "Auditoria Últ. Login"}).style.map(colorir_status, subset=['Situação']), use_container_width=True, hide_index=True)
+                # Renderização em Cartões para melhor leitura no App/Web
+                for _, r in df_clientes.iterrows():
+                    cor_status = "#15803d" if r['status'] == "Aprovado" else "#b91c1c"
+                    st.markdown(f"""
+                        <div class="mobile-card">
+                            <h4 style="margin: 0 0 4px 0;">👤 {r['nome']}</h4>
+                            <p style="margin: 2px 0;"><strong>E-mail:</strong> {r['email']}</p>
+                            <p style="margin: 2px 0;"><strong>Status:</strong> <span style="color:{cor_status}; font-weight:bold;">{r['status']}</span></p>
+                            <p style="margin: 2px 0; font-size: 0.85rem; color: #64748b;">⏳ Último Login: {r['ultimo_login']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
             else:
                 st.info("Nenhuma conta registada.")
 
@@ -448,6 +507,13 @@ else:
                 
                 if not pedidos_cli.empty:
                     st.markdown(f"<div style='padding: 10px; background: #f1f5f9; border-radius: 8px; margin-bottom: 10px;'><strong>Volume de Negócio Acumulado:</strong> R$ {float(pedidos_cli['total'].sum()):,.2f}</div>", unsafe_allow_html=True)
-                    st.dataframe(pedidos_cli.rename(columns={"id": "Nº Fatura", "total": "Montante", "status": "Situação", "data": "Realizado em"}), use_container_width=True, hide_index=True)
+                    for _, r in pedidos_cli.iterrows():
+                        st.markdown(f"""
+                            <div class="mobile-card" style="padding: 12px;">
+                                <h4 style="font-size: 1rem; margin-bottom: 4px;">🧾 Fatura #{r['id']}</h4>
+                                <p style="margin: 0; font-size: 0.9rem;"><strong>Data:</strong> {r['data']} | <strong>Status:</strong> {r['status']}</p>
+                                <p style="margin: 0; font-size: 0.9rem; color: #0284c7;"><strong>Valor: R$ {float(r['total']):,.2f}</strong></p>
+                            </div>
+                        """, unsafe_allow_html=True)
                 else:
                     st.info("Não existem transações financeiras associadas a este perfil.")

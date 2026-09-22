@@ -1,3 +1,4 @@
+import os
 import base64
 import psycopg2
 import streamlit as st
@@ -6,50 +7,81 @@ import urllib.parse
 import urllib.request
 
 # ==========================================
-# 1. TRAVA TOTAL DE CORES (PRETO & BRANCO)
+# 1. CONFIGURAÇÃO E CSS DE ALTO CONTRASTE TOTAL
 # ==========================================
 st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
 
 st.markdown("""
     <style>
-    /* Força fundo branco global e texto preto */
-    html, body, [data-testid="stAppViewContainer"], .main {
+    /* Força fundo branco global e texto preto absoluto */
+    html, body, [data-testid="stAppViewContainer"], .main, .block-container {
         background-color: #ffffff !important;
         color: #000000 !important;
     }
     
     .block-container {
         max-width: 480px !important;
-        padding-top: 1.5rem !important;
+        padding-top: 1.2rem !important;
         padding-bottom: 5rem !important;
         margin: 0 auto !important;
     }
     
-    /* Remove cabeçalhos, rodapés e tags vazias do Streamlit */
     #MainMenu, header, footer, [data-testid="stToolbar"] { 
         visibility: hidden !important; 
         display: none !important; 
     }
     
-    /* Todos os textos e rótulos pretos */
-    h1, h2, h3, h4, h5, p, span, label, div {
+    /* Todos os textos, títulos e labels em preto */
+    h1, h2, h3, h4, h5, h6, p, span, label, div, small, strong {
         color: #000000 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     }
     
-    /* CORREÇÃO DOS INPUTS: Fundo branco e texto preto bem nítido */
-    input, textarea, [data-baseweb="input"], [data-baseweb="base-input"] {
+    /* TODOS OS CAMPOS DE ENTRADA (Text, Number, Area, Senha, Dropdowns) */
+    input, textarea, select,
+    [data-baseweb="input"], [data-baseweb="base-input"],
+    [data-baseweb="select"], [data-baseweb="select"] > div,
+    [data-testid="stNumberInput"] input {
         background-color: #ffffff !important;
         color: #000000 !important;
         border: 2px solid #000000 !important;
         border-radius: 8px !important;
+        font-weight: 600 !important;
     }
-    input::placeholder {
-        color: #71717a !important;
+
+    /* Remove o fundo escuro do botão de visualização de senha e ícones internos */
+    [data-baseweb="input"] button,
+    [data-baseweb="input"] svg,
+    [data-baseweb="base-input"] button,
+    [data-baseweb="base-input"] svg,
+    button[aria-label="Show password"],
+    button[aria-label="Hide password"] {
+        background-color: transparent !important;
+        color: #000000 !important;
+        fill: #000000 !important;
+        border: none !important;
     }
     
-    /* CORREÇÃO DO BOTÃO: Fundo preto e TEXTO BRANCO OBRIGATÓRIO */
-    div.stButton > button, div.stButton > button * {
+    /* Popover/Menu aberto de Selectbox */
+    ul[role="listbox"], [data-baseweb="popover"], [data-baseweb="menu"] {
+        background-color: #ffffff !important;
+        border: 2px solid #000000 !important;
+    }
+    li[role="option"] {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    li[role="option"]:hover, li[aria-selected="true"] {
+        background-color: #000000 !important;
+        color: #ffffff !important;
+    }
+    li[role="option"]:hover *, li[aria-selected="true"] * {
+        color: #ffffff !important;
+    }
+
+    /* Botões do Streamlit (Preto com Texto Branco em Alto Contraste) */
+    div.stButton > button, 
+    div.stDownloadButton > button {
         background-color: #000000 !important;
         color: #ffffff !important;
         border: 2px solid #000000 !important;
@@ -58,22 +90,29 @@ st.markdown("""
         font-size: 1rem !important;
         min-height: 48px !important;
     }
+    div.stButton > button *,
+    div.stDownloadButton > button * {
+        color: #ffffff !important;
+    }
     div.stButton > button:hover {
         background-color: #27272a !important;
     }
 
-    /* Rádios e abas de navegação */
+    /* Navegação por Abas (Radio Horizontal) */
     div[role="radiogroup"] {
         background-color: #f4f4f5 !important;
         border: 2px solid #000000 !important;
         border-radius: 10px !important;
         padding: 4px !important;
+        display: flex !important;
+        gap: 4px !important;
     }
     div[role="radiogroup"] label {
         flex: 1 !important;
         text-align: center !important;
         border-radius: 6px !important;
         padding: 8px 4px !important;
+        background: transparent !important;
     }
     div[role="radiogroup"] label > div:first-child { display: none !important; }
     div[role="radiogroup"] label[data-checked="true"] {
@@ -82,10 +121,11 @@ st.markdown("""
     div[role="radiogroup"] label[data-checked="true"] p, 
     div[role="radiogroup"] label[data-checked="true"] span {
         color: #ffffff !important;
-        font-weight: bold !important;
+        font-weight: 800 !important;
     }
     div[role="radiogroup"] label[data-checked="false"] p {
         color: #000000 !important;
+        font-weight: 700 !important;
     }
 
     /* Cards e Containers com contorno preto nítido */
@@ -95,19 +135,53 @@ st.markdown("""
         border-radius: 10px !important;
         padding: 14px !important;
         margin-bottom: 12px !important;
-        box-shadow: 2px 2px 0px #000000 !important;
+        box-shadow: 3px 3px 0px #000000 !important;
     }
-    
-    /* Selectbox e Menus suspensos */
-    div[data-baseweb="select"] * {
-        background-color: #ffffff !important;
+    div[data-testid="stMetricLabel"] p {
+        font-size: 0.85rem !important;
         color: #000000 !important;
+        font-weight: 800 !important;
+    }
+    div[data-testid="stMetricValue"] div {
+        color: #000000 !important;
+        font-weight: 900 !important;
+    }
+
+    /* Logo estilizada */
+    .brand-logo-img {
+        width: 80px;
+        height: 80px;
+        object-fit: contain;
+        border-radius: 12px;
+        border: 2px solid #000000;
+        margin-bottom: 12px;
+        background: #ffffff;
     }
     </style>
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. CONEXÃO AO SUPABASE (GMT-3)
+# 2. CARREGAMENTO DA LOGO REAL
+# ==========================================
+def obter_logo_html():
+    possiveis_caminhos = [
+        "TCC_V2/img/logo.jpg",
+        "img/logo.jpg",
+        "TCC_V2/img/logo.png",
+        "img/logo.png"
+    ]
+    for caminho in possiveis_caminhos:
+        if os.path.exists(caminho):
+            try:
+                with open(caminho, "rb") as f:
+                    b64 = base64.b64encode(f.read()).decode()
+                    return f"<img class='brand-logo-img' src='data:image/jpeg;base64,{b64}' alt='Logo JR'>"
+            except Exception:
+                pass
+    return "<div style='font-size: 3.5rem; margin-bottom: 8px;'>💡</div>"
+
+# ==========================================
+# 3. CONEXÃO AO SUPABASE (GMT-3)
 # ==========================================
 def get_db_connection():
     conn = psycopg2.connect(
@@ -160,17 +234,18 @@ def enviar_telegram_aviso(msg):
         pass
 
 # ==========================================
-# 3. TELA DE LOGIN
+# 4. TELA DE LOGIN COM SUA LOGO
 # ==========================================
 if "autenticado" not in st.session_state:
     st.session_state["autenticado"] = False
 
 if not st.session_state["autenticado"]:
-    st.markdown("""
+    logo_render = obter_logo_html()
+    st.markdown(f"""
         <div style='text-align: center; margin-top: 2rem; margin-bottom: 1.5rem;'>
-            <div style='font-size: 3rem; margin-bottom: 8px;'>💡</div>
+            {logo_render}
             <h1 style='font-size: 1.7rem; color: #000000; margin: 0; font-weight: 900;'>JR Iluminação</h1>
-            <p style='color: #4b5563; font-size: 0.95rem; margin-top: 4px;'>Painel de Gestão e Administração</p>
+            <p style='color: #27272a; font-size: 0.95rem; margin-top: 4px; font-weight: 600;'>Painel de Gestão e Administração</p>
         </div>
     """, unsafe_allow_html=True)
     
@@ -186,7 +261,7 @@ if not st.session_state["autenticado"]:
             st.error("Credenciais inválidas.")
 
 # ==========================================
-# 4. PAINEL PRINCIPAL
+# 5. PAINEL PRINCIPAL
 # ==========================================
 else:
     col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
@@ -227,10 +302,10 @@ else:
         if not df_vendas_data.empty:
             st.bar_chart(df_vendas_data.set_index('dia')['total_dia'])
 
-    # ABA PRODUTOS
+    # ABA PRODUTOS (CRUD COM ALTO CONTRASTE TOTAL)
     elif menu_principal == "📦 Produtos":
         st.markdown("<h4 style='font-weight:900; margin-bottom:12px;'>Catálogo e Estoque</h4>", unsafe_allow_html=True)
-        acao_prod = st.selectbox("Operação:", ["📋 Listar Produtos", "➕ Cadastrar Produto", "🗑️ Excluir Produto"])
+        acao_prod = st.selectbox("Operação:", ["📋 Listar Produtos", "➕ Cadastrar Produto", "✏️ Editar Produto", "🗑️ Excluir Produto"])
         st.write("")
 
         if acao_prod == "📋 Listar Produtos":
@@ -248,17 +323,45 @@ else:
                 st.info("Nenhum produto cadastrado.")
 
         elif acao_prod == "➕ Cadastrar Produto":
-            novo_nome = st.text_input("Nome do Produto")
-            nova_cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Spots", "Plafons", "Outros"])
-            novo_preco = st.number_input("Preço (R$)", min_value=0.01, step=0.50, format="%.2f")
-            nova_qtd = st.number_input("Quantidade", min_value=0, step=1, value=10)
+            novo_nome = st.text_input("Nome do Produto", placeholder="Ex: Lâmpada Filamento LED")
+            nova_cat = st.selectbox("Categoria:", ["Lâmpadas", "Fitas LED", "Spots", "Plafons", "Outros"])
+            novo_preco = st.number_input("Preço de Venda (R$)", min_value=0.01, step=0.50, format="%.2f")
+            nova_qtd = st.number_input("Quantidade em Estoque", min_value=0, step=1, value=10)
+            nova_desc = st.text_area("Descrição Técnica", placeholder="Especificações do item...")
             
+            st.write("")
             if st.button("Gravar Produto", type="primary", use_container_width=True):
                 if novo_nome.strip():
-                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, 'placeholder.jpg')", 
-                                        (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd))):
+                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s, 'placeholder.jpg')", 
+                                        (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd), nova_desc.strip())):
                         st.success("Produto cadastrado com sucesso!")
                         st.rerun()
+                else:
+                    st.warning("Informe o nome do produto.")
+
+        elif acao_prod == "✏️ Editar Produto":
+            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, descricao FROM produtos ORDER BY nome ASC")
+            if not df_produtos.empty:
+                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_produtos.iterrows()}
+                prod_id = opcoes[st.selectbox("Selecione o Produto:", list(opcoes.keys()))]
+                prod_atual = df_produtos[df_produtos['id'] == prod_id].iloc[0]
+                
+                e_nome = st.text_input("Nome", value=str(prod_atual['nome']))
+                categorias_lista = ["Lâmpadas", "Fitas LED", "Spots", "Plafons", "Outros"]
+                cat_atual = str(prod_atual.get('categoria', 'Outros'))
+                e_cat = st.selectbox("Categoria", categorias_lista, index=categorias_lista.index(cat_atual) if cat_atual in categorias_lista else 4)
+                e_preco = st.number_input("Preço (R$)", min_value=0.01, value=float(prod_atual['preco']), format="%.2f")
+                e_qtd = st.number_input("Estoque", min_value=0, value=int(prod_atual['quantidade']))
+                e_desc = st.text_area("Descrição", value=str(prod_atual['descricao'] or ""))
+                
+                st.write("")
+                if st.button("Salvar Alterações", type="primary", use_container_width=True):
+                    if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, descricao=%s WHERE id=%s", 
+                                        (e_nome.strip(), e_cat, float(e_preco), int(e_qtd), e_desc.strip(), prod_id)):
+                        st.success("Produto atualizado!")
+                        st.rerun()
+            else:
+                st.info("Nenhum produto cadastrado.")
 
         elif acao_prod == "🗑️ Excluir Produto":
             df_produtos = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
@@ -273,7 +376,7 @@ else:
     # ABA PEDIDOS
     elif menu_principal == "🛒 Pedidos":
         st.markdown("<h4 style='font-weight:900; margin-bottom:12px;'>Gestão de Pedidos</h4>", unsafe_allow_html=True)
-        acao_ped = st.selectbox("Operação:", ["📋 Listagem Geral", "🔍 Detalhe do Pedido", "📥 Exportar CSV"])
+        acao_ped = st.selectbox("Operação:", ["📋 Listagem Geral", "🔍 Detalhe do Pedido", "🔄 Atualizar Status", "📥 Exportar CSV"])
         st.write("")
 
         if acao_ped == "📋 Listagem Geral":
@@ -312,6 +415,17 @@ else:
                     if not itens.empty:
                         st.dataframe(itens, use_container_width=True, hide_index=True)
 
+        elif acao_ped == "🔄 Atualizar Status":
+            pendentes = buscar_dados("SELECT id, status FROM pedidos ORDER BY id DESC")
+            if not pendentes.empty:
+                opcoes = {f"#{r['id']} (Atual: {r['status']})": r['id'] for _, r in pendentes.iterrows()}
+                ped_id = opcoes[st.selectbox("Pedido:", list(opcoes.keys()))]
+                novo_status = st.selectbox("Novo Status:", ["Pendente", "Em processamento", "Enviado", "Entregue", "Concluído", "Cancelado"])
+                if st.button("Atualizar Status", type="primary", use_container_width=True):
+                    if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
+                        st.success("Status atualizado com sucesso!")
+                        st.rerun()
+
         elif acao_ped == "📥 Exportar CSV":
             df_export = buscar_dados("SELECT p.id, c.nome as cliente, c.email, p.total, p.status, p.data_pedido FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
             if not df_export.empty:
@@ -320,8 +434,7 @@ else:
                     data=df_export.to_csv(index=False).encode('utf-8'),
                     file_name="relatorio_pedidos.csv",
                     mime="text/csv",
-                    use_container_width=True,
-                    type="primary"
+                    use_container_width=True
                 )
 
     # ABA CLIENTES

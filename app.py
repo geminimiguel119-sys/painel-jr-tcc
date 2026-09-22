@@ -7,14 +7,14 @@ import urllib.parse
 import urllib.request
 
 # ==========================================
-# 1. CONFIGURAÇÃO E CSS DE ALTO CONTRASTE TOTAL
+# 1. CONFIGURAÇÃO E CSS DE ALTO CONTRASTE TOTAL (CORRIGIDO)
 # ==========================================
 st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
 
 st.markdown("""
     <style>
-    /* Força fundo branco global e texto preto absoluto */
-    html, body, [data-testid="stAppViewContainer"], .main, .block-container {
+    /* 1. Força fundo branco global e anula temas escuros do navegador */
+    html, body, [data-testid="stAppViewContainer"], .main, .block-container, [data-testid="stHeader"] {
         background-color: #ffffff !important;
         color: #000000 !important;
     }
@@ -31,38 +31,40 @@ st.markdown("""
         display: none !important; 
     }
     
-    /* Todos os textos, títulos e labels em preto */
-    h1, h2, h3, h4, h5, h6, p, span, label, div, small, strong {
+    /* 2. Textos estruturais em preto nítido (não generalizado em divs) */
+    h1, h2, h3, h4, h5, h6, p, label, small, strong {
         color: #000000 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
     }
     
-    /* TODOS OS CAMPOS DE ENTRADA (Text, Number, Area, Senha, Dropdowns) */
-    input, textarea, select,
-    [data-baseweb="input"], [data-baseweb="base-input"],
-    [data-baseweb="select"], [data-baseweb="select"] > div,
-    [data-testid="stNumberInput"] input {
+    /* 3. Campos de entrada (Texto, Senha, Área, Números, Dropdowns) */
+    input, textarea, select, [data-baseweb="input"], [data-baseweb="base-input"] {
         background-color: #ffffff !important;
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         border: 2px solid #000000 !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
     }
 
-    /* Remove o fundo escuro do botão de visualização de senha e ícones internos */
-    [data-baseweb="input"] button,
-    [data-baseweb="input"] svg,
-    [data-baseweb="base-input"] button,
-    [data-baseweb="base-input"] svg,
-    button[aria-label="Show password"],
-    button[aria-label="Hide password"] {
-        background-color: transparent !important;
+    [data-testid="stNumberInput"] input,
+    [data-testid="stTextInput"] input {
+        background-color: #ffffff !important;
         color: #000000 !important;
-        fill: #000000 !important;
-        border: none !important;
+        -webkit-text-fill-color: #000000 !important;
     }
-    
-    /* Popover/Menu aberto de Selectbox */
+
+    /* Selectbox e opções suspensas */
+    [data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        border: 2px solid #000000 !important;
+        border-radius: 8px !important;
+    }
+    [data-baseweb="select"] span, [data-baseweb="select"] div {
+        color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
+    }
+
     ul[role="listbox"], [data-baseweb="popover"], [data-baseweb="menu"] {
         background-color: #ffffff !important;
         border: 2px solid #000000 !important;
@@ -70,35 +72,54 @@ st.markdown("""
     li[role="option"] {
         background-color: #ffffff !important;
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
     }
     li[role="option"]:hover, li[aria-selected="true"] {
         background-color: #000000 !important;
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
     li[role="option"]:hover *, li[aria-selected="true"] * {
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
     }
 
-    /* Botões do Streamlit (Preto com Texto Branco em Alto Contraste) */
+    /* Ícones de mostrar/ocultar senha */
+    [data-baseweb="input"] button,
+    [data-baseweb="input"] svg,
+    button[aria-label="Show password"],
+    button[aria-label="Hide password"] {
+        background-color: transparent !important;
+        color: #000000 !important;
+        fill: #000000 !important;
+        border: none !important;
+    }
+
+    /* 4. BOTÕES: Fundo Preto com Texto ESTRITAMENTE BRANCO */
     div.stButton > button, 
     div.stDownloadButton > button {
         background-color: #000000 !important;
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
         border: 2px solid #000000 !important;
         border-radius: 8px !important;
         font-weight: 800 !important;
         font-size: 1rem !important;
         min-height: 48px !important;
     }
-    div.stButton > button *,
-    div.stDownloadButton > button * {
-        color: #ffffff !important;
-    }
     div.stButton > button:hover {
         background-color: #27272a !important;
     }
+    div.stButton > button p,
+    div.stButton > button span,
+    div.stButton > button div,
+    div.stDownloadButton > button p,
+    div.stDownloadButton > button span {
+        color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
+    }
 
-    /* Navegação por Abas (Radio Horizontal) */
+    /* 5. Navegação por Abas (Radio Horizontal) */
     div[role="radiogroup"] {
         background-color: #f4f4f5 !important;
         border: 2px solid #000000 !important;
@@ -114,21 +135,30 @@ st.markdown("""
         padding: 8px 4px !important;
         background: transparent !important;
     }
-    div[role="radiogroup"] label > div:first-child { display: none !important; }
+    div[role="radiogroup"] label > div:first-child { 
+        display: none !important; 
+    }
+    
+    /* Aba Ativa: Fundo Preto e Letra Branca */
     div[role="radiogroup"] label[data-checked="true"] {
         background-color: #000000 !important;
     }
     div[role="radiogroup"] label[data-checked="true"] p, 
     div[role="radiogroup"] label[data-checked="true"] span {
         color: #ffffff !important;
+        -webkit-text-fill-color: #ffffff !important;
         font-weight: 800 !important;
     }
-    div[role="radiogroup"] label[data-checked="false"] p {
+
+    /* Aba Inativa: Fundo Claro e Letra Preta */
+    div[role="radiogroup"] label[data-checked="false"] p,
+    div[role="radiogroup"] label[data-checked="false"] span {
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-weight: 700 !important;
     }
 
-    /* Cards e Containers com contorno preto nítido */
+    /* 6. Cards e Métricas */
     div[data-testid="stMetric"], .mobile-card, .card-detalhe {
         background-color: #ffffff !important;
         border: 2px solid #000000 !important;
@@ -140,14 +170,23 @@ st.markdown("""
     div[data-testid="stMetricLabel"] p {
         font-size: 0.85rem !important;
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-weight: 800 !important;
     }
     div[data-testid="stMetricValue"] div {
         color: #000000 !important;
+        -webkit-text-fill-color: #000000 !important;
         font-weight: 900 !important;
     }
 
-    /* Logo estilizada */
+    /* 7. Dataframes e Tabelas Nítidas */
+    [data-testid="stDataFrame"] {
+        border: 2px solid #000000 !important;
+        border-radius: 8px !important;
+        background-color: #ffffff !important;
+    }
+    
+    /* 8. Logo */
     .brand-logo-img {
         width: 80px;
         height: 80px;
@@ -302,7 +341,7 @@ else:
         if not df_vendas_data.empty:
             st.bar_chart(df_vendas_data.set_index('dia')['total_dia'])
 
-    # ABA PRODUTOS (CRUD COM ALTO CONTRASTE TOTAL)
+    # ABA PRODUTOS
     elif menu_principal == "📦 Produtos":
         st.markdown("<h4 style='font-weight:900; margin-bottom:12px;'>Catálogo e Estoque</h4>", unsafe_allow_html=True)
         acao_prod = st.selectbox("Operação:", ["📋 Listar Produtos", "➕ Cadastrar Produto", "✏️ Editar Produto", "🗑️ Excluir Produto"])

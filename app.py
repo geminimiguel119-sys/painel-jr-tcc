@@ -127,6 +127,7 @@ st.markdown("""
         padding: 4px !important;
         display: flex !important;
         gap: 4px !important;
+        overflow-x: auto !important;
     }
     div[role="radiogroup"] label {
         flex: 1 !important;
@@ -134,6 +135,7 @@ st.markdown("""
         border-radius: 6px !important;
         padding: 8px 4px !important;
         background: transparent !important;
+        white-space: nowrap !important;
     }
     div[role="radiogroup"] label > div:first-child { 
         display: none !important; 
@@ -272,6 +274,23 @@ def enviar_telegram_aviso(msg):
     except:
         pass
 
+def upload_imagem_supabase(arquivo):
+    try:
+        nome_ext = arquivo.name.split('.')[-1]
+        nome_arquivo = f"prod_{os.urandom(4).hex()}.{nome_ext}"
+        upload_url = f"https://bfppcxnxqagpesuyjlhe.supabase.co/storage/v1/object/produtos/{nome_arquivo}"
+        headers = {
+            "Authorization": "Bearer sb_publishable_idrD2ABOskkGike5BuOqPA_fMjbbw6y",
+            "Content-Type": arquivo.type
+        }
+        req = urllib.request.Request(upload_url, data=arquivo.getvalue(), headers=headers, method="POST")
+        with urllib.request.urlopen(req) as resp:
+            if resp.status in [200, 201]:
+                return f"https://bfppcxnxqagpesuyjlhe.supabase.co/storage/v1/object/public/produtos/{nome_arquivo}"
+    except Exception as e:
+        st.warning(f"Aviso de upload: Imagem mantida localmente ({e})")
+    return "placeholder.jpg"
+
 # ==========================================
 # 4. TELA DE LOGIN COM SUA LOGO
 # ==========================================
@@ -312,7 +331,7 @@ else:
             st.rerun()
 
     st.write("")
-    menu_principal = st.radio("Menu", ["📊 Geral", "📦 Produtos", "🛒 Pedidos", "👥 Clientes"], horizontal=True, label_visibility="collapsed")
+    menu_principal = st.radio("Menu", ["📊 Geral", "📦 Produtos", "🔮 Preditivo", "🛒 Pedidos", "👥 Clientes"], horizontal=True, label_visibility="collapsed")
     st.write("")
 
     # ABA GERAL
@@ -348,7 +367,7 @@ else:
         st.write("")
 
         if acao_prod == "📋 Listar Produtos":
-            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade FROM produtos ORDER BY id DESC")
+            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, imagem FROM produtos ORDER BY id DESC")
             if not df_produtos.empty:
                 for _, r in df_produtos.iterrows():
                     st.markdown(f"""
@@ -367,19 +386,24 @@ else:
             novo_preco = st.number_input("Preço de Venda (R$)", min_value=0.01, step=0.50, format="%.2f")
             nova_qtd = st.number_input("Quantidade em Estoque", min_value=0, step=1, value=10)
             nova_desc = st.text_area("Descrição Técnica", placeholder="Especificações do item...")
+            arquivo_foto = st.file_uploader("Foto do Produto (Opcional)", type=["jpg", "jpeg", "png"])
             
             st.write("")
             if st.button("Gravar Produto", type="primary", use_container_width=True):
                 if novo_nome.strip():
-                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s, 'placeholder.jpg')", 
-                                        (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd), nova_desc.strip())):
+                    img_final = "placeholder.jpg"
+                    if arquivo_foto is not None:
+                        img_final = upload_imagem_supabase(arquivo_foto)
+
+                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s, %s)", 
+                                        (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd), nova_desc.strip(), img_final)):
                         st.success("Produto cadastrado com sucesso!")
                         st.rerun()
                 else:
                     st.warning("Informe o nome do produto.")
 
         elif acao_prod == "✏️ Editar Produto":
-            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, descricao FROM produtos ORDER BY nome ASC")
+            df_produtos = buscar_dados("SELECT id, nome, categoria, preco, quantidade, descricao, imagem FROM produtos ORDER BY nome ASC")
             if not df_produtos.empty:
                 opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_produtos.iterrows()}
                 prod_id = opcoes[st.selectbox("Selecione o Produto:", list(opcoes.keys()))]
@@ -393,10 +417,16 @@ else:
                 e_qtd = st.number_input("Estoque", min_value=0, value=int(prod_atual['quantidade']))
                 e_desc = st.text_area("Descrição", value=str(prod_atual['descricao'] or ""))
                 
+                arquivo_foto_edit = st.file_uploader("Substituir Foto (Opcional)", type=["jpg", "jpeg", "png"])
+                
                 st.write("")
                 if st.button("Salvar Alterações", type="primary", use_container_width=True):
-                    if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, descricao=%s WHERE id=%s", 
-                                        (e_nome.strip(), e_cat, float(e_preco), int(e_qtd), e_desc.strip(), prod_id)):
+                    img_url = prod_atual['imagem']
+                    if arquivo_foto_edit is not None:
+                        img_url = upload_imagem_supabase(arquivo_foto_edit)
+
+                    if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, descricao=%s, imagem=%s WHERE id=%s", 
+                                        (e_nome.strip(), e_cat, float(e_preco), int(e_qtd), e_desc.strip(), img_url, prod_id)):
                         st.success("Produto atualizado!")
                         st.rerun()
             else:
@@ -411,6 +441,62 @@ else:
                     if executar_comando("DELETE FROM produtos WHERE id = %s", (del_id,)):
                         st.success("Removido com sucesso.")
                         st.rerun()
+
+    # ABA PREDITIVO (TCC - MODELO DE ENGENHARIA DE SUPRIMENTOS)
+    elif menu_principal == "🔮 Preditivo":
+        st.markdown("<h4 style='font-weight:900; margin-bottom:4px;'>Controle Preditivo de Estoque</h4>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:0.85rem; color:#475569; margin-bottom:16px;'>Cálculo preditivo de consumo, estimativa de ruptura e ponto de encomenda ao fornecedor.</p>", unsafe_allow_html=True)
+
+        dias_analise = st.slider("Janela de análise histórica (dias):", min_value=7, max_value=60, value=30)
+        lead_time_dias = 5  # Lead Time do fornecedor (dias)
+        
+        query_pred = f"""
+            SELECT 
+                p.id,
+                p.nome,
+                p.quantidade as estoque_atual,
+                p.preco,
+                COALESCE(SUM(ip.quantidade), 0) as total_vendido
+            FROM produtos p
+            LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
+            LEFT JOIN pedidos ped ON ped.id = ip.pedido_id AND ped.data_pedido >= NOW() - INTERVAL '{dias_analise} days'
+            GROUP BY p.id, p.nome, p.quantidade, p.preco
+            ORDER BY estoque_atual ASC;
+        """
+        df_pred = buscar_dados(query_pred)
+
+        if not df_pred.empty:
+            df_pred['cmd'] = df_pred['total_vendido'] / dias_analise
+            df_pred['dias_restantes'] = df_pred.apply(
+                lambda row: int(row['estoque_atual'] / row['cmd']) if row['cmd'] > 0 else 999, axis=1
+            )
+            df_pred['ponto_reposicao'] = (df_pred['cmd'] * lead_time_dias).round().astype(int) + 2
+
+            criticos = df_pred[df_pred['dias_restantes'] <= lead_time_dias]
+            if not criticos.empty:
+                st.error(f"⚠️ **Atenção:** {len(criticos)} produto(s) entrarão em ruptura antes do prazo de entrega do fornecedor ({lead_time_dias} dias)!")
+
+            for _, r in df_pred.iterrows():
+                if r['dias_restantes'] <= lead_time_dias:
+                    badge_status = f"<span style='background:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem;'>🚨 Ruptura em {r['dias_restantes']} dias</span>"
+                elif r['dias_restantes'] <= 15:
+                    badge_status = f"<span style='background:#fef3c7; color:#92400e; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem;'>⚠️ Atenção ({r['dias_restantes']} dias)</span>"
+                else:
+                    dias_txt = "Estável (+30 dias)" if r['dias_restantes'] >= 999 else f"{r['dias_restantes']} dias"
+                    badge_status = f"<span style='background:#dcfce7; color:#166534; padding:3px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem;'>✓ {dias_txt}</span>"
+
+                st.markdown(f"""
+                    <div class="mobile-card">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                            <h4 style="margin:0; font-size:1rem;">{r['nome']}</h4>
+                            {badge_status}
+                        </div>
+                        <p style="margin:2px 0; font-size:0.85rem;"><strong>Estoque Atual:</strong> {r['estoque_atual']} un. | <strong>Saídas ({dias_analise}d):</strong> {int(r['total_vendido'])} un.</p>
+                        <p style="margin:2px 0; font-size:0.85rem;"><strong>Consumo Médio:</strong> {r['cmd']:.2f} un./dia | <strong>Ponto de Reposição Sugerido:</strong> {r['ponto_reposicao']} un.</p>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Nenhum registro para estimativa.")
 
     # ABA PEDIDOS
     elif menu_principal == "🛒 Pedidos":

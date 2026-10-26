@@ -1,36 +1,38 @@
 import os
 import hmac
-import base64
-import logging
 import psycopg2
 import streamlit as st
 import pandas as pd
-import urllib.parse
-import urllib.request
-
-logging.basicConfig(level=logging.ERROR)
 
 # ==========================================
-# 1. CONFIGURAÇÃO VISUAL SIMPLIFICADA
+# 1. CONFIGURAÇÃO VISUAL ANTI-TELA BRANCA
 # ==========================================
 st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
 
 st.markdown("""
     <style>
+    /* Força fundo claro e texto escuro globalmente para evitar sumiço no Modo Escuro */
+    html, body, [data-testid="stAppViewContainer"], .main, .block-container {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+    }
+    h1, h2, h3, h4, h5, h6, p, span, div, label, li {
+        color: #000000 !important;
+    }
     .block-container { max-width: 500px !important; padding-top: 2rem !important; }
     #MainMenu, header, footer { display: none !important; }
     
     .mobile-card {
-        background-color: #ffffff;
-        border: 1px solid #e5e7eb;
+        background-color: #f9fafb !important;
+        border: 1px solid #d1d5db !important;
         border-radius: 8px;
         padding: 16px;
         margin-bottom: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     }
-    .badge-critico { background:#fee2e2; color:#991b1b; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
-    .badge-atencao { background:#fef3c7; color:#92400e; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
-    .badge-ok { background:#dcfce7; color:#166534; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
+    .badge-critico { background:#fee2e2 !important; color:#991b1b !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
+    .badge-atencao { background:#fef3c7 !important; color:#92400e !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
+    .badge-ok { background:#dcfce7 !important; color:#166534 !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -58,7 +60,7 @@ def get_db_connection():
         conn.commit()
         return conn
     except Exception as e:
-        st.error(f"Erro de conexão: Verifique as variáveis de ambiente (Secrets).")
+        st.error(f"Erro de conexão com o Banco de Dados. Verifique as senhas.")
         st.stop()
 
 @st.cache_data(ttl=5)
@@ -68,7 +70,9 @@ def buscar_dados(query, params=None):
         df = pd.read_sql(query, conn, params=params) if params else pd.read_sql(query, conn)
         conn.close()
         return df
-    except: return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro ao carregar os dados: {e}")
+        return pd.DataFrame()
 
 def executar_comando(query, params=None):
     try:
@@ -79,7 +83,9 @@ def executar_comando(query, params=None):
         conn.close()
         st.cache_data.clear()
         return True
-    except: return False
+    except Exception as e:
+        st.error(f"Erro ao executar operação: {e}")
+        return False
 
 def validar_login(usuario, senha):
     au, ap = obter_config("ADMIN_USER", "admin"), obter_config("ADMIN_PASS", "123456")
@@ -122,11 +128,11 @@ else:
         df_prod = buscar_dados("SELECT SUM(quantidade) as est FROM produtos")
         
         col1, col2 = st.columns(2)
-        col1.metric("Faturamento", f"R$ {float(df_ped['fat'].iloc[0] or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-        col2.metric("Total de Pedidos", str(df_ped['qtd'].iloc[0] or 0))
+        col1.metric("Faturamento", f"R$ {float(df_ped['fat'].iloc[0] if not df_ped.empty and pd.notna(df_ped['fat'].iloc[0]) else 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        col2.metric("Total de Pedidos", str(df_ped['qtd'].iloc[0] if not df_ped.empty else 0))
         
         col3, col4 = st.columns(2)
-        col3.metric("Estoque Total", f"{int(df_prod['est'].iloc[0] or 0)} un.")
+        col3.metric("Estoque Total", f"{int(df_prod['est'].iloc[0] if not df_prod.empty and pd.notna(df_prod['est'].iloc[0]) else 0)} un.")
         col4.metric("Status do Sistema", "Online 🟢")
 
     # --- PRODUTOS ---
@@ -136,8 +142,11 @@ else:
         
         if acao == "Listar":
             df = buscar_dados("SELECT * FROM produtos ORDER BY id DESC")
-            for _, r in df.iterrows():
-                st.markdown(f"<div class='mobile-card'><b>{r['nome']}</b><br>Preço: R$ {r['preco']:.2f} | Estoque: {r['quantidade']} un.</div>", unsafe_allow_html=True)
+            if not df.empty:
+                for _, r in df.iterrows():
+                    st.markdown(f"<div class='mobile-card'><b>{r['nome']}</b><br>Preço: R$ {r['preco']:.2f} | Estoque: {r['quantidade']} un.</div>", unsafe_allow_html=True)
+            else:
+                st.info("Nenhum produto cadastrado.")
                 
         elif acao == "Adicionar":
             nome = st.text_input("Nome")
@@ -146,8 +155,10 @@ else:
             qtd = st.number_input("Quantidade", min_value=0, step=1)
             if st.button("Salvar Produto", type="primary"):
                 if nome:
-                    executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, 'placeholder.jpg')", (nome, cat, preco, qtd))
-                    st.success("Produto cadastrado!"); st.rerun()
+                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, 'placeholder.jpg')", (nome, cat, preco, qtd)):
+                        st.success("Produto cadastrado!"); st.rerun()
+                else:
+                    st.warning("Preencha o nome.")
 
     # --- PREDITIVO SIMPLIFICADO ---
     elif menu == "Preditivo":
@@ -155,7 +166,7 @@ else:
         st.caption("Cálculo direto de Ponto de Reposição e Alertas de Ruptura.")
         
         dias = st.slider("Analisar vendas dos últimos X dias:", 7, 60, 30)
-        lead_time = 5 # Tempo que o fornecedor demora a entregar
+        lead_time = 5
         
         query = """
             SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
@@ -191,6 +202,8 @@ else:
                         </span>
                     </div>
                 """, unsafe_allow_html=True)
+        else:
+            st.info("Nenhum produto cadastrado para calcular.")
 
     # --- PEDIDOS ---
     elif menu == "Pedidos":
@@ -199,8 +212,11 @@ else:
         
         if acao == "Listar":
             df = buscar_dados("SELECT p.id, c.nome, p.status, p.total FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
-            for _, r in df.iterrows():
-                st.markdown(f"<div class='mobile-card'><b>Pedido #{r['id']} - {r['nome']}</b><br>Status: {r['status']} | Total: R$ {r['total']:.2f}</div>", unsafe_allow_html=True)
+            if not df.empty:
+                for _, r in df.iterrows():
+                    st.markdown(f"<div class='mobile-card'><b>Pedido #{r['id']} - {r['nome']}</b><br>Status: {r['status']} | Total: R$ {r['total']:.2f}</div>", unsafe_allow_html=True)
+            else:
+                st.info("Nenhum pedido encontrado.")
                 
         elif acao == "Atualizar Status":
             df = buscar_dados("SELECT id, status FROM pedidos ORDER BY id DESC")
@@ -209,8 +225,10 @@ else:
                 ped_id = opcoes[st.selectbox("Selecione o Pedido", list(opcoes.keys()))]
                 novo_status = st.selectbox("Novo Status", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
                 if st.button("Atualizar"):
-                    executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id))
-                    st.success("Atualizado!"); st.rerun()
+                    if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
+                        st.success("Atualizado!"); st.rerun()
+            else:
+                st.info("Nenhum pedido encontrado para atualizar.")
 
     # --- CLIENTES ---
     elif menu == "Clientes":
@@ -220,7 +238,7 @@ else:
             for _, r in df.iterrows():
                 st.markdown(f"<div class='mobile-card'><b>{r['nome']}</b><br>{r['email']}</div>", unsafe_allow_html=True)
                 if st.button(f"Aprovar Conta #{r['id']}", key=f"btn_{r['id']}"):
-                    executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (r['id'],))
-                    st.success("Aprovado!"); st.rerun()
+                    if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (r['id'],)):
+                        st.success("Aprovado!"); st.rerun()
         else:
             st.info("Nenhuma conta pendente de aprovação.")

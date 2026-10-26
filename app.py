@@ -6,8 +6,8 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="wide")
 
-# --- CONEXÃO COM A BASE DE DADOS (SUPABASE) ---
-# Substitua a string abaixo pela sua URL do Supabase se não estiver a usar o secrets
+# --- CONEXÃO COM O BANCO DE DADOS (SUPABASE) ---
+# Substitua a string abaixo pela sua URL do Supabase se não estiver usando o secrets
 DB_URL = st.secrets["DB_URL"] if "DB_URL" in st.secrets else "postgresql://postgres:sua_senha@seu_host:5432/postgres"
 
 def conectar():
@@ -20,7 +20,7 @@ def buscar_dados(query, params=None):
         conn.close()
         return df
     except Exception as e:
-        st.error(f"Erro na base de dados: {e}")
+        st.error(f"Erro no banco de dados: {e}")
         return pd.DataFrame()
 
 def executar_comando(query, params=None):
@@ -43,13 +43,13 @@ if "logado" not in st.session_state:
 if not st.session_state.logado:
     st.title("🔒 Acesso Restrito - JR Iluminação")
     st.markdown("Área exclusiva para a administração do sistema.")
-    senha = st.text_input("Palavra-passe de Administrador", type="password")
+    senha = st.text_input("Senha de Administrador", type="password")
     if st.button("Entrar", type="primary"):
         if senha == "admin123": # Senha fictícia para a apresentação do TCC
             st.session_state.logado = True
             st.rerun()
         else:
-            st.error("Palavra-passe incorreta.")
+            st.error("Senha incorreta.")
     st.stop()
 
 # --- MENU LATERAL ---
@@ -78,7 +78,7 @@ if menu == "Resumo":
     col1, col2, col3 = st.columns(3)
     col1.metric("Faturamento Líquido", f"R$ {receita_total:,.2f}")
     col2.metric("Vendas Concluídas", qtd_pedidos)
-    col3.metric("Clientes Registados", total_clientes)
+    col3.metric("Clientes Cadastrados", total_clientes)
     
     st.divider()
     st.subheader("Últimos Pedidos")
@@ -86,7 +86,7 @@ if menu == "Resumo":
     if not ultimos.empty:
         st.dataframe(ultimos, use_container_width=True, hide_index=True)
     else:
-        st.info("Ainda não há pedidos registados no sistema.")
+        st.info("Ainda não há pedidos cadastrados no sistema.")
 
 # ==========================================
 # 2. PRODUTOS (COM RENDERIZAÇÃO DE IMAGEM)
@@ -173,12 +173,12 @@ elif menu == "Clientes":
         st.caption("Cenário de demonstração para a banca (Aprovação de novo cliente).")
         col_sel, col_btn = st.columns([3, 1], vertical_alignment="bottom")
         with col_sel:
-            cliente_aprovar = st.selectbox("Selecione o cliente recém-registado", df_clientes['nome'].tolist())
+            cliente_aprovar = st.selectbox("Selecione o cliente recém-cadastrado", df_clientes['nome'].tolist())
         with col_btn:
             if st.button("✅ Aprovar Acesso", use_container_width=True):
                 st.success(f"Acesso concedido a {cliente_aprovar} com sucesso!")
     else:
-        st.info("Nenhum cliente registado.")
+        st.info("Nenhum cliente cadastrado.")
 
 # ==========================================
 # 4. PEDIDOS (COM ESTORNO AUTOMÁTICO SIMULADO)
@@ -203,7 +203,7 @@ elif menu == "Pedidos":
         novo_status = st.selectbox("Novo Status", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
         
         if st.button("Atualizar Status", type="primary"):
-            # Lógica de estorno para a gravação: Se cancelar o pedido, devolve o stock ao produto
+            # Lógica de estorno para a gravação: Se cancelar o pedido, devolve o estoque ao produto
             if novo_status == "Cancelado":
                 itens = buscar_dados("SELECT produto_id, quantidade FROM itens_pedido WHERE pedido_id = %s", (id_pedido,))
                 for _, item in itens.iterrows():
@@ -213,7 +213,7 @@ elif menu == "Pedidos":
                 st.success(f"Pedido #{id_pedido} atualizado para {novo_status}!")
                 st.rerun()
     else:
-        st.info("Nenhum pedido registado.")
+        st.info("Nenhum pedido cadastrado.")
 
 # ==========================================
 # 5. PREDITIVO (SIMPLIFICADO E DIRETO)

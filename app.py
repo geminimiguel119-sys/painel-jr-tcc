@@ -206,7 +206,7 @@ def get_db_connection():
     db_pass = obter_config("DB_PASS")
 
     if not db_host or not db_user or not db_pass:
-        st.error("⚠️ Configuração pendente: DB_HOST, DB_USER e DB_PASS ausentes.")
+        st.error("⚠️ Configuração pendente: DB_HOST, DB_USER e DB_PASS ausentes nas variáveis de ambiente.")
         st.stop()
 
     conn = psycopg2.connect(host=db_host, port=db_port, database=db_name, user=db_user, password=db_pass, sslmode="require")
@@ -225,7 +225,7 @@ def buscar_dados(query, params=None):
         return df
     except Exception as e:
         logging.error(f"Erro SQL em buscar_dados: {e}")
-        st.error("Falha ao carregar os dados do servidor.")
+        st.error("Falha ao carregar os dados do banco de dados.")
         return pd.DataFrame()
 
 def executar_comando(query, params=None):
@@ -351,7 +351,7 @@ else:
         if not df_vendas_data.empty:
             st.bar_chart(df_vendas_data.sort_values('data_ordem', ascending=True).set_index('dia')['total_dia'])
         else:
-            st.info("Sem histórico de vendas.")
+            st.info("Sem histórico de vendas recente.")
 
     # ------------------ ABA PRODUTOS ------------------
     elif menu_principal == "📦 Produtos":
@@ -370,6 +370,8 @@ else:
                             <p style="margin:2px 0;"><strong>Preço:</strong> R$ {float(r['preco']):,.2f} | <strong>Estoque:</strong> {r['quantidade']} un.</p>
                         </div>
                     """, unsafe_allow_html=True)
+            else:
+                st.info("Nenhum produto cadastrado.")
 
         elif acao_prod == "➕ Cadastrar Produto":
             novo_nome = st.text_input("Nome do Produto")
@@ -384,13 +386,13 @@ else:
                     img = upload_imagem_supabase(arquivo_foto) if arquivo_foto else "placeholder.jpg"
                     if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, descricao, imagem) VALUES (%s, %s, %s, %s, %s, %s)", (novo_nome.strip(), nova_cat, float(novo_preco), int(nova_qtd), nova_desc.strip(), img)):
                         st.success("Cadastrado com sucesso!"); st.rerun()
-                else: st.warning("Informe o nome.")
+                else: st.warning("Informe o nome do produto.")
 
         elif acao_prod == "✏️ Editar Produto":
             df_p = buscar_dados("SELECT * FROM produtos ORDER BY nome ASC")
             if not df_p.empty:
                 opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_p.iterrows()}
-                prod_id = opcoes[st.selectbox("Selecione:", list(opcoes.keys()))]
+                prod_id = opcoes[st.selectbox("Selecione o Produto:", list(opcoes.keys()))]
                 p = df_p[df_p['id'] == prod_id].iloc[0]
                 
                 e_nome = st.text_input("Nome", value=str(p['nome']))
@@ -404,16 +406,16 @@ else:
                 if st.button("Salvar Alterações", type="primary", use_container_width=True):
                     img = upload_imagem_supabase(arquivo_foto) if arquivo_foto else p['imagem']
                     if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, descricao=%s, imagem=%s WHERE id=%s", (e_nome.strip(), e_cat, float(e_preco), int(e_qtd), e_desc.strip(), img, prod_id)):
-                        st.success("Atualizado!"); st.rerun()
+                        st.success("Produto atualizado com sucesso!"); st.rerun()
 
         elif acao_prod == "🗑️ Excluir Produto":
             df_p = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
             if not df_p.empty:
                 opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_p.iterrows()}
-                del_id = opcoes[st.selectbox("Remover:", list(opcoes.keys()))]
+                del_id = opcoes[st.selectbox("Produto para remover:", list(opcoes.keys()))]
                 if st.button("Confirmar Exclusão", type="primary", use_container_width=True):
                     if executar_comando("DELETE FROM produtos WHERE id = %s", (del_id,)):
-                        st.success("Removido!"); st.rerun()
+                        st.success("Produto removido com sucesso!"); st.rerun()
 
     # ------------------ ABA BI PREDITIVO (NOVO) ------------------
     elif menu_principal == "🔮 BI Preditivo":
@@ -532,7 +534,7 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("Dados insuficientes para cálculo preditivo.")
+            st.info("Dados insuficientes para calcular o modelo preditivo.")
 
     # ------------------ ABA PEDIDOS ------------------
     elif menu_principal == "🛒 Pedidos":
@@ -551,6 +553,8 @@ else:
                             <p style="margin:2px 0;"><strong>Status:</strong> {r['status']} | <strong>Data:</strong> {r['data']}</p>
                         </div>
                     """, unsafe_allow_html=True)
+            else:
+                st.info("Nenhum pedido registrado no banco de dados.")
 
         elif acao_ped == "🔍 Detalhe do Pedido":
             lista = buscar_dados("SELECT p.id, c.nome, p.total FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
@@ -577,7 +581,7 @@ else:
                 novo_status = st.selectbox("Novo Status:", ["Pendente", "Em processamento", "Enviado", "Entregue", "Concluído", "Cancelado"])
                 if st.button("Atualizar", type="primary", use_container_width=True):
                     if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
-                        st.success("Atualizado!"); st.rerun()
+                        st.success("Status atualizado!"); st.rerun()
 
         elif acao_ped == "📥 Exportar CSV":
             df_export = buscar_dados("SELECT p.id, c.nome as cliente, c.email, p.total, p.status, p.data_pedido FROM pedidos p LEFT JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
@@ -610,6 +614,6 @@ else:
                     reg = pendentes[pendentes['id'] == user_id].iloc[0]
                     if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (user_id,)):
                         enviar_telegram_aviso(f"✅ *Conta Aprovada pelo Admin!*\n\n👤 *Cliente:* {reg['nome']}\n📧 *E-mail:* {reg['email']}\n🔓 Acesso autorizado.")
-                        st.success("Conta libertada com sucesso!"); st.rerun()
+                        st.success("Conta liberada com sucesso!"); st.rerun()
             else:
-                st.success("Sem contas pendentes.")
+                st.success("Sem contas pendentes de aprovação.")

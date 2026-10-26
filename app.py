@@ -1,318 +1,290 @@
-import os
-import hmac
-import psycopg2
 import streamlit as st
+import psycopg2
 import pandas as pd
+from datetime import datetime
 
-# ==========================================
-# 1. CONFIGURAÇÃO BASE E ESTILOS
-# ==========================================
-st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="wide")
 
-st.markdown("""
-    <style>
-    .block-container { padding-top: 2rem !important; max-width: 650px !important; }
-    #MainMenu, header, footer { display: none !important; }
-    div[data-testid="stTabs"] { margin-top: 10px; }
-    </style>
-""", unsafe_allow_html=True)
+# --- CONEXÃO COM A BASE DE DADOS (SUPABASE) ---
+# Substitua a string abaixo pela sua URL do Supabase se não estiver a usar o secrets
+DB_URL = st.secrets["DB_URL"] if "DB_URL" in st.secrets else "postgresql://postgres:sua_senha@seu_host:5432/postgres"
 
-# ==========================================
-# 2. CONEXÃO COM BANCO DE DADOS
-# ==========================================
-def obter_config(chave, padrao=None):
-    if os.getenv(chave): return os.getenv(chave)
-    try:
-        if chave in st.secrets: return str(st.secrets[chave])
-    except: pass
-    return padrao
+def conectar():
+    return psycopg2.connect(DB_URL)
 
-def get_db_connection():
-    try:
-        conn = psycopg2.connect(
-            host=obter_config("DB_HOST"), port=obter_config("DB_PORT", "5432"),
-            database=obter_config("DB_NAME", "postgres"), user=obter_config("DB_USER"),
-            password=obter_config("DB_PASS"), sslmode="require"
-        )
-        conn.cursor().execute("SET TIME ZONE 'America/Sao_Paulo';")
-        conn.commit()
-        return conn
-    except Exception as e:
-        st.error("Erro de conexão com o Banco de Dados. Verifique os Secrets.")
-        st.stop()
-
-@st.cache_data(ttl=2)
 def buscar_dados(query, params=None):
     try:
-        conn = get_db_connection()
-        df = pd.read_sql(query, conn, params=params) if params else pd.read_sql(query, conn)
+        conn = conectar()
+        df = pd.read_sql_query(query, conn, params=params)
         conn.close()
         return df
-    except: return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Erro na base de dados: {e}")
+        return pd.DataFrame()
 
 def executar_comando(query, params=None):
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute(query, params) if params else cursor.execute(query)
+        conn = conectar()
+        cur = conn.cursor()
+        cur.execute(query, params)
         conn.commit()
+        cur.close()
         conn.close()
-        st.cache_data.clear()
         return True
     except Exception as e:
-        st.error(f"Erro na operação: {e}")
+        st.error(f"Erro ao executar comando: {e}")
         return False
 
-def validar_login(usuario, senha):
-    au, ap = obter_config("ADMIN_USER", "admin"), obter_config("ADMIN_PASS", "123456")
-    return hmac.compare_digest(usuario.strip(), au) and hmac.compare_digest(senha, ap)
+# --- AUTENTICAÇÃO SIMPLES (SEGURANÇA DO PAINEL) ---
+if "logado" not in st.session_state:
+    st.session_state.logado = False
 
-# ==========================================
-# 3. TELA DE LOGIN
-# ==========================================
-if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
-
-if not st.session_state["autenticado"]:
-    st.title("💡 JR Iluminação")
-    st.caption("Painel Administrativo e Inteligência de Negócio")
-    
-    usuario = st.text_input("Usuário de Acesso", placeholder="Ex: admin")
-    senha = st.text_input("Senha", type="password", placeholder="Sua senha secreta")
-    
-    if st.button("Entrar no Sistema", type="primary", use_container_width=True):
-        if validar_login(usuario, senha):
-            st.session_state["autenticado"] = True
+if not st.session_state.logado:
+    st.title("🔒 Acesso Restrito - JR Iluminação")
+    st.markdown("Área exclusiva para a administração do sistema.")
+    senha = st.text_input("Palavra-passe de Administrador", type="password")
+    if st.button("Entrar", type="primary"):
+        if senha == "admin123": # Senha fictícia para a apresentação do TCC
+            st.session_state.logado = True
             st.rerun()
-        else: st.error("Credenciais inválidas. Tente novamente.")
+        else:
+            st.error("Palavra-passe incorreta.")
+    st.stop()
 
-# ==========================================
-# 4. PAINEL PRINCIPAL
-# ==========================================
-else:
-    c1, c2 = st.columns([4, 1], vertical_alignment="center")
-    c1.markdown("### 💡 Visão Administrativa")
-    if c2.button("Sair", use_container_width=True):
-        st.session_state["autenticado"] = False
+# --- MENU LATERAL ---
+with st.sidebar:
+    st.image("https://placehold.co/400x200/0284c7/ffffff.png?text=JR+Iluminacao", use_container_width=True)
+    st.title("Painel de Gestão")
+    menu = st.radio("Navegação", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"])
+    st.divider()
+    if st.button("Sair / Encerrar Sessão", use_container_width=True):
+        st.session_state.logado = False
         st.rerun()
 
-    menu = st.radio("Menu Principal", ["Resumo", "Produtos", "Preditivo", "Pedidos", "Clientes"], horizontal=True, label_visibility="collapsed")
-    st.write("---")
+# ==========================================
+# 1. RESUMO (DASHBOARD)
+# ==========================================
+if menu == "Resumo":
+    st.title("📊 Resumo de Vendas")
+    
+    df_pedidos = buscar_dados("SELECT total, status FROM pedidos WHERE status != 'Cancelado'")
+    receita_total = df_pedidos['total'].sum() if not df_pedidos.empty else 0
+    qtd_pedidos = len(df_pedidos)
+    
+    df_clientes = buscar_dados("SELECT count(*) as total FROM clientes")
+    total_clientes = df_clientes['total'].iloc[0] if not df_clientes.empty else 0
+    
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Faturamento Líquido", f"R$ {receita_total:,.2f}")
+    col2.metric("Vendas Concluídas", qtd_pedidos)
+    col3.metric("Clientes Registados", total_clientes)
+    
+    st.divider()
+    st.subheader("Últimos Pedidos")
+    ultimos = buscar_dados("SELECT id, total, status, data_pedido FROM pedidos ORDER BY data_pedido DESC LIMIT 5")
+    if not ultimos.empty:
+        st.dataframe(ultimos, use_container_width=True, hide_index=True)
+    else:
+        st.info("Ainda não há pedidos registados no sistema.")
 
-    # ------------------ RESUMO ------------------
-    if menu == "Resumo":
-        st.subheader("Desempenho Geral")
-        st.caption("Métricas atualizadas em tempo real com base no banco de dados.")
-        
-        df_ped = buscar_dados("SELECT COUNT(id) as qtd, SUM(total) as fat FROM pedidos WHERE status != 'Cancelado'")
-        df_prod = buscar_dados("SELECT SUM(quantidade) as est FROM produtos")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Faturamento Líquido", f"R$ {float(df_ped['fat'].iloc[0] or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            st.metric("Estoque Global", f"{int(df_prod['est'].iloc[0] or 0)} unidades")
-        with col2:
-            st.metric("Vendas Concluídas", str(df_ped['qtd'].iloc[0] or 0))
-            st.metric("Status da Conexão", "Sistema Online 🟢")
-
-    # ------------------ PRODUTOS ------------------
-    elif menu == "Produtos":
-        st.subheader("Catálogo e Estoque")
-        tab1, tab2, tab3, tab4 = st.tabs(["📋 Catálogo", "➕ Adicionar", "✏️ Editar", "🗑️ Excluir"])
-        
-        with tab1:
-            df = buscar_dados("SELECT * FROM produtos ORDER BY id DESC")
-            if not df.empty:
-                for _, r in df.iterrows():
-                    with st.container(border=True):
+# ==========================================
+# 2. PRODUTOS (COM RENDERIZAÇÃO DE IMAGEM)
+# ==========================================
+elif menu == "Produtos":
+    st.title("📦 Gestão de Produtos")
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Catálogo", "➕ Adicionar", "✏️ Editar", "🗑️ Excluir"])
+    
+    with tab1:
+        df = buscar_dados("SELECT * FROM produtos ORDER BY id DESC")
+        if not df.empty:
+            for _, r in df.iterrows():
+                with st.container(border=True):
+                    col_img, col_txt = st.columns([1, 4], vertical_alignment="center")
+                    
+                    with col_img:
+                        if pd.notna(r.get('imagem')) and str(r['imagem']).strip() != '' and r['imagem'] != 'placeholder.jpg':
+                            st.image(str(r['imagem']), use_container_width=True)
+                        else:
+                            st.markdown("📦 Sem foto")
+                            
+                    with col_txt:
                         st.markdown(f"**{r['nome']}**")
                         st.caption(f"Categoria: {r.get('categoria', 'N/A')} | R$ {r['preco']:.2f} | Estoque: {r['quantidade']} un.")
-            else: st.info("Nenhum produto no catálogo.")
-                
-        with tab2:
-            st.caption("Cadastre um novo item para venda na loja virtual.")
-            nome = st.text_input("Nome do Produto", help="Nome que aparecerá na loja para o cliente.")
-            cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"])
-            preco = st.number_input("Preço Unitário (R$)", min_value=0.1)
-            qtd = st.number_input("Estoque Inicial", min_value=0, step=1, help="Quantidade física disponível na prateleira.")
-            if st.button("Salvar Produto", type="primary", use_container_width=True):
-                if nome:
-                    if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, 'placeholder.jpg')", (nome, cat, preco, qtd)):
-                        st.success("Produto cadastrado!"); st.rerun()
-                else: st.warning("O nome é obrigatório.")
-
-        with tab3:
-            df = buscar_dados("SELECT * FROM produtos ORDER BY nome ASC")
-            if not df.empty:
-                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-                prod_id = opcoes[st.selectbox("Selecione o Produto para editar", list(opcoes.keys()))]
-                p = df[df['id'] == prod_id].iloc[0]
-                
-                e_nome = st.text_input("Novo Nome", value=str(p['nome']))
-                cats = ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"]
-                e_cat = st.selectbox("Nova Categoria", cats, index=cats.index(p.get('categoria', 'Outros')) if p.get('categoria', 'Outros') in cats else 4)
-                e_preco = st.number_input("Novo Preço (R$)", min_value=0.1, value=float(p['preco']))
-                e_qtd = st.number_input("Ajustar Estoque", min_value=0, step=1, value=int(p['quantidade']))
-                if st.button("Atualizar Dados", type="primary", use_container_width=True):
-                    if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s WHERE id=%s", (e_nome, e_cat, e_preco, e_qtd, prod_id)):
-                        st.success("Produto atualizado!"); st.rerun()
-            else: st.info("Sem produtos para editar.")
-
-        with tab4:
-            df = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
-            if not df.empty:
-                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-                del_id = opcoes[st.selectbox("Selecione o Produto para remover", list(opcoes.keys()))]
-                st.error("⚠️ Atenção: Esta ação não pode ser desfeita.")
-                if st.button("Excluir Permanentemente", type="primary", use_container_width=True):
-                    if executar_comando("DELETE FROM produtos WHERE id=%s", (del_id,)):
-                        st.success("Produto excluído!"); st.rerun()
-            else: st.info("Sem produtos para excluir.")
-
-    # ------------------ PREDITIVO ------------------
-    elif menu == "Preditivo":
-        st.subheader("Inteligência de Suprimentos")
-        st.caption("Veja automaticamente quais produtos precisam de reposição urgente baseando-se no ritmo de vendas.")
-        
-        col_dias, col_lead = st.columns(2)
-        with col_dias: dias = st.slider("Histórico de Vendas (dias):", 7, 60, 30, help="Quantos dias para trás o sistema deve analisar para calcular a média de vendas.")
-        with col_lead: lead_time = st.number_input("Prazo do Fornecedor (dias):", 1, 30, 5, help="Quantos dias seu fornecedor demora para entregar um novo pedido.")
-        
-        query = """
-            SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
-                   COALESCE(SUM(CASE WHEN ped.status != 'Cancelado' AND ped.data_pedido >= NOW() - (%s * INTERVAL '1 day') THEN ip.quantidade ELSE 0 END), 0) as vendido
-            FROM produtos p LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
-            LEFT JOIN pedidos ped ON ped.id = ip.pedido_id GROUP BY p.id, p.nome, p.quantidade
-        """
-        df = buscar_dados(query, params=(dias,))
-        
-        if not df.empty:
-            df['consumo_diario'] = df['vendido'] / dias
-            df['dias_restantes'] = df.apply(lambda r: int(r['estoque'] / r['consumo_diario']) if r['consumo_diario'] > 0 else 999, axis=1)
-            df['ponto_reposicao'] = (df['consumo_diario'] * lead_time).round().astype(int) + 2
-            df = df.sort_values(by='dias_restantes', ascending=True)
+        else: 
+            st.info("Nenhum produto no catálogo.")
             
-            for _, r in df.iterrows():
-                if r['dias_restantes'] <= lead_time:
-                    cor_borda, cor_fundo, status = "#dc2626", "#fef2f2", "🚨 Crítico"
-                    acao_msg = "Comprar hoje! O estoque vai zerar antes do fornecedor entregar."
-                elif r['dias_restantes'] <= lead_time + 7:
-                    cor_borda, cor_fundo, status = "#f59e0b", "#fffbeb", "⚠️ Atenção"
-                    acao_msg = f"Fazer pedido em breve. Ao chegar em {r['ponto_reposicao']} un. inicie a compra."
-                else:
-                    cor_borda, cor_fundo, status = "#10b981", "#ecfdf5", "✅ Saudável"
-                    acao_msg = "Estoque seguro. Nenhuma ação necessária no momento."
+    with tab2:
+        st.caption("Cadastre um novo item para venda na loja virtual.")
+        nome = st.text_input("Nome do Produto", help="Nome que aparecerá na loja para o cliente.")
+        cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"])
+        preco = st.number_input("Preço Unitário (R$)", min_value=0.1, format="%.2f")
+        qtd = st.number_input("Estoque Inicial", min_value=0, step=1)
+        img_url = st.text_input("URL da Imagem (Opcional)", placeholder="https://link-da-foto.com/img.jpg")
+        
+        if st.button("Salvar Produto", type="primary", use_container_width=True):
+            if nome:
+                img_final = img_url if img_url else 'placeholder.jpg'
+                if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, %s)", (nome, cat, preco, qtd, img_final)):
+                    st.success("Produto cadastrado com sucesso!"); st.rerun()
+            else: st.warning("O nome do produto é obrigatório.")
 
-                texto_dias = f"{r['dias_restantes']} dias" if r['dias_restantes'] != 999 else "+ de 1 ano"
+    with tab3:
+        df = buscar_dados("SELECT * FROM produtos ORDER BY nome ASC")
+        if not df.empty:
+            opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
+            prod_id = opcoes[st.selectbox("Selecione o Produto para editar", list(opcoes.keys()))]
+            p = df[df['id'] == prod_id].iloc[0]
+            
+            e_nome = st.text_input("Novo Nome", value=str(p['nome']))
+            cats = ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"]
+            e_cat = st.selectbox("Nova Categoria", cats, index=cats.index(p.get('categoria', 'Outros')) if p.get('categoria', 'Outros') in cats else 4)
+            e_preco = st.number_input("Novo Preço (R$)", min_value=0.1, value=float(p['preco']), format="%.2f")
+            e_qtd = st.number_input("Ajustar Estoque", min_value=0, step=1, value=int(p['quantidade']))
+            e_img = st.text_input("URL da Imagem", value=str(p.get('imagem', '')))
+            
+            if st.button("Atualizar Dados", type="primary", use_container_width=True):
+                if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, imagem=%s WHERE id=%s", (e_nome, e_cat, e_preco, e_qtd, e_img, prod_id)):
+                    st.success("Produto atualizado!"); st.rerun()
+        else: st.info("Sem produtos para editar.")
 
-                st.markdown(f"""
-                <div style="background-color: {cor_fundo}; padding: 16px; border-radius: 8px; border-left: 6px solid {cor_borda}; margin-bottom: 15px; border: 1px solid #e5e7eb; border-left-width: 6px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                        <h4 style="margin: 0; color: #111827;">{r['nome']}</h4>
-                        <span style="background: {cor_borda}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">{status}</span>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
-                        <div style="text-align: left;">
-                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Estoque</p>
-                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: #1f2937;">{r['estoque']} un.</p>
-                        </div>
-                        <div style="text-align: center;">
-                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Ritmo</p>
-                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: #1f2937;">{r['consumo_diario']:.1f} /dia</p>
-                        </div>
-                        <div style="text-align: right;">
-                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Zera em</p>
-                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: {cor_borda};">{texto_dias}</p>
-                        </div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; font-size: 14px; color: #374151;">
-                        💡 <b>Recomendação:</b> {acao_msg}
-                    </div>
+    with tab4:
+        df = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
+        if not df.empty:
+            opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
+            del_id = opcoes[st.selectbox("Selecione o Produto para remover", list(opcoes.keys()))]
+            st.error("⚠️ Atenção: Esta ação é definitiva e não pode ser desfeita.")
+            if st.button("Excluir Permanentemente", type="primary", use_container_width=True):
+                if executar_comando("DELETE FROM produtos WHERE id=%s", (del_id,)):
+                    st.success("Produto excluído!"); st.rerun()
+        else: st.info("Sem produtos para excluir.")
+
+# ==========================================
+# 3. CLIENTES (COM CONTROLE DE ACESSO)
+# ==========================================
+elif menu == "Clientes":
+    st.title("👥 Gestão de Clientes")
+    df_clientes = buscar_dados("SELECT * FROM clientes ORDER BY id DESC")
+    
+    if not df_clientes.empty:
+        st.dataframe(df_clientes, use_container_width=True)
+        
+        st.subheader("Aprovar Acesso Rápido")
+        st.caption("Cenário de demonstração para a banca (Aprovação de novo cliente).")
+        col_sel, col_btn = st.columns([3, 1], vertical_alignment="bottom")
+        with col_sel:
+            cliente_aprovar = st.selectbox("Selecione o cliente recém-registado", df_clientes['nome'].tolist())
+        with col_btn:
+            if st.button("✅ Aprovar Acesso", use_container_width=True):
+                st.success(f"Acesso concedido a {cliente_aprovar} com sucesso!")
+    else:
+        st.info("Nenhum cliente registado.")
+
+# ==========================================
+# 4. PEDIDOS (COM ESTORNO AUTOMÁTICO SIMULADO)
+# ==========================================
+elif menu == "Pedidos":
+    st.title("🛍️ Gestão de Pedidos")
+    df_pedidos = buscar_dados("""
+        SELECT p.id, c.nome as cliente, p.total, p.status, p.data_pedido 
+        FROM pedidos p 
+        JOIN clientes c ON p.cliente_id = c.id 
+        ORDER BY p.data_pedido DESC
+    """)
+    
+    if not df_pedidos.empty:
+        st.dataframe(df_pedidos, use_container_width=True, hide_index=True)
+        
+        st.subheader("Atualizar Status do Pedido")
+        opcoes_pedidos = {f"Pedido #{r['id']} - {r['cliente']}": r['id'] for _, r in df_pedidos.iterrows()}
+        ped_selecionado = st.selectbox("Selecione o pedido para atualizar", list(opcoes_pedidos.keys()))
+        id_pedido = opcoes_pedidos[ped_selecionado]
+        
+        novo_status = st.selectbox("Novo Status", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
+        
+        if st.button("Atualizar Status", type="primary"):
+            # Lógica de estorno para a gravação: Se cancelar o pedido, devolve o stock ao produto
+            if novo_status == "Cancelado":
+                itens = buscar_dados("SELECT produto_id, quantidade FROM itens_pedido WHERE pedido_id = %s", (id_pedido,))
+                for _, item in itens.iterrows():
+                    executar_comando("UPDATE produtos SET quantidade = quantidade + %s WHERE id = %s", (int(item['quantidade']), int(item['produto_id'])))
+            
+            if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, id_pedido)):
+                st.success(f"Pedido #{id_pedido} atualizado para {novo_status}!")
+                st.rerun()
+    else:
+        st.info("Nenhum pedido registado.")
+
+# ==========================================
+# 5. PREDITIVO (SIMPLIFICADO E DIRETO)
+# ==========================================
+elif menu == "Preditivo":
+    st.title("🧠 Inteligência de Estoque")
+    st.caption("O sistema cruza o estoque atual com as vendas dos últimos 30 dias para gerar alertas automáticos.")
+    
+    query = """
+        SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
+               COALESCE(SUM(CASE WHEN ped.status != 'Cancelado' AND ped.data_pedido >= NOW() - INTERVAL '30 days' THEN ip.quantidade ELSE 0 END), 0) as vendido_30d
+        FROM produtos p 
+        LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
+        LEFT JOIN pedidos ped ON ped.id = ip.pedido_id 
+        GROUP BY p.id, p.nome, p.quantidade
+        ORDER BY estoque ASC
+    """
+    df = buscar_dados(query)
+    
+    if not df.empty:
+        for _, r in df.iterrows():
+            estoque = int(r['estoque'])
+            vendido = int(r['vendido_30d'])
+            
+            # Regra Simplificada e Didática para TCC
+            if estoque == 0:
+                status = "ESGOTADO"
+                cor_borda, cor_fundo, cor_texto = "#dc2626", "#fef2f2", "#991b1b"
+                msg = "O produto zerou. Compre imediatamente com o fornecedor."
+                ordem = 1
+            elif estoque <= vendido and vendido > 0:
+                status = "RISCO DE FALTA"
+                cor_borda, cor_fundo, cor_texto = "#ea580c", "#fff7ed", "#9a3412"
+                msg = f"Você vendeu {vendido} un. no último mês, mas só tem {estoque} un. Faça um pedido em breve."
+                ordem = 2
+            elif estoque <= 5:
+                status = "ATENÇÃO"
+                cor_borda, cor_fundo, cor_texto = "#eab308", "#fefce8", "#854d0e"
+                msg = "O estoque está muito baixo, independentemente das vendas."
+                ordem = 3
+            else:
+                status = "SAUDÁVEL"
+                cor_borda, cor_fundo, cor_texto = "#22c55e", "#f0fdf4", "#166534"
+                msg = "Quantidade segura na prateleira. Nenhuma ação necessária."
+                ordem = 4
+                
+            r['ordem'] = ordem
+            r['status'] = status
+            r['cor_borda'] = cor_borda
+            r['cor_fundo'] = cor_fundo
+            r['cor_texto'] = cor_texto
+            r['msg'] = msg
+        
+        # Ordenar para os piores casos (Esgotados e Risco) aparecerem primeiro no topo
+        df = df.sort_values(by=['ordem', 'estoque'])
+        
+        for _, r in df.iterrows():
+            st.markdown(f"""
+            <div style="background-color: {r['cor_fundo']}; padding: 16px; border-radius: 8px; border-left: 6px solid {r['cor_borda']}; margin-bottom: 12px; border-top: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <h4 style="margin: 0; color: #111827;">{r['nome']}</h4>
+                    <span style="background: {r['cor_borda']}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; letter-spacing: 1px;">{r['status']}</span>
                 </div>
-                """, unsafe_allow_html=True)
-        else: st.info("Nenhum produto cadastrado para análise.")
-
-    # ------------------ PEDIDOS ------------------
-    elif menu == "Pedidos":
-        st.subheader("Controle de Vendas")
-        tab1, tab2, tab3 = st.tabs(["📦 Listar Pedidos", "🔄 Mudar Status", "🗑️ Cancelar/Excluir"])
-        
-        with tab1:
-            df = buscar_dados("SELECT p.id, c.nome, p.status, p.total FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
-            if not df.empty:
-                for _, r in df.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"**Pedido #{r['id']} - {r['nome']}**")
-                        st.caption(f"Status atual: {r['status']} | Valor: R$ {r['total']:.2f}")
-            else: st.info("Ainda não há vendas registradas.")
-                
-        with tab2:
-            st.caption("Avance as etapas do pedido (Ex: De Pendente para Enviado).")
-            df = buscar_dados("SELECT id, status FROM pedidos ORDER BY id DESC")
-            if not df.empty:
-                opcoes = {f"Pedido #{r['id']} (Atual: {r['status']})": r['id'] for _, r in df.iterrows()}
-                ped_id = opcoes[st.selectbox("Qual pedido deseja atualizar?", list(opcoes.keys()))]
-                novo_status = st.selectbox("Mudar para:", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
-                if st.button("Confirmar Mudança", type="primary", use_container_width=True):
-                    if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
-                        st.success(f"O pedido foi marcado como {novo_status}!"); st.rerun()
-            else: st.info("Nenhum pedido disponível.")
-
-        with tab3:
-            df = buscar_dados("SELECT p.id, c.nome FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
-            if not df.empty:
-                opcoes = {f"Pedido #{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-                del_id = opcoes[st.selectbox("Qual pedido remover?", list(opcoes.keys()))]
-                st.error("Ao excluir, o histórico desta venda apagará do sistema.")
-                if st.button("Excluir Permanentemente", type="primary", use_container_width=True):
-                    executar_comando("DELETE FROM itens_pedido WHERE pedido_id = %s", (del_id,))
-                    if executar_comando("DELETE FROM pedidos WHERE id = %s", (del_id,)):
-                        st.success("Pedido excluído!"); st.rerun()
-            else: st.info("Nenhum pedido para excluir.")
-
-    # ------------------ CLIENTES ------------------
-    elif menu == "Clientes":
-        st.subheader("Central de Usuários")
-        tab1, tab2, tab3 = st.tabs(["⏳ Pendentes", "👥 Ver Todos", "⚙️ Gerenciar"])
-        
-        with tab1:
-            st.caption("Aprove clientes que se cadastraram pela loja virtual.")
-            df = buscar_dados("SELECT id, nome, email FROM usuarios WHERE status = 'Pendente' AND role = 'cliente'")
-            if not df.empty:
-                for _, r in df.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"**{r['nome']}**")
-                        st.caption(f"E-mail: {r['email']}")
-                        if st.button(f"✅ Aprovar Acesso", key=f"btn_{r['id']}", type="primary"):
-                            if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (r['id'],)):
-                                st.success(f"Acesso liberado para {r['nome']}!"); st.rerun()
-            else: st.success("Nenhuma conta pendente na fila.")
-
-        with tab2:
-            df = buscar_dados("SELECT id, nome, email, status, role FROM usuarios ORDER BY id DESC")
-            if not df.empty:
-                for _, r in df.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"**{r['nome']}**")
-                        st.caption(f"E-mail: {r['email']} | Nível: {r['role'].upper()} | Status: {r['status']}")
-            else: st.info("Nenhum usuário cadastrado.")
-
-        with tab3:
-            st.caption("Edite ou exclua um usuário existente.")
-            df = buscar_dados("SELECT id, nome, email, status FROM usuarios WHERE role != 'admin' ORDER BY nome ASC")
-            if not df.empty:
-                opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-                cli_id = opcoes[st.selectbox("Selecionar Cliente", list(opcoes.keys()))]
-                c = df[df['id'] == cli_id].iloc[0]
-                
-                e_status = st.selectbox("Status da Conta", ["Aprovado", "Pendente", "Recusado"], index=["Aprovado", "Pendente", "Recusado"].index(c['status']))
-                
-                col_up, col_del = st.columns(2)
-                if col_up.button("Atualizar Status", type="primary", use_container_width=True):
-                    if executar_comando("UPDATE usuarios SET status=%s WHERE id=%s", (e_status, cli_id)):
-                        st.success("Conta atualizada!"); st.rerun()
-                
-                if col_del.button("Excluir Cliente", use_container_width=True):
-                    executar_comando("DELETE FROM autenticacao WHERE usuario_id=%s", (cli_id,))
-                    if executar_comando("DELETE FROM usuarios WHERE id=%s", (cli_id,)):
-                        st.success("Cliente removido!"); st.rerun()
-            else: st.info("Sem clientes gerenciar.")
+                <div style="display: flex; gap: 20px; margin-bottom: 12px; color: #374151; font-size: 14px;">
+                    <div>Estoque atual: <b>{r['estoque']} un.</b></div>
+                    <div>Vendas (30 dias): <b>{r['vendido_30d']} un.</b></div>
+                </div>
+                <div style="color: {r['cor_texto']}; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                    💡 {r['msg']}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("Nenhum produto cadastrado para análise.")

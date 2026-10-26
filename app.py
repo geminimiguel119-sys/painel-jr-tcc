@@ -206,8 +206,10 @@ elif menu == "Produtos":
             e_nome = st.text_input("Nome", value=str(p['nome']))
             e_cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"], index=["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"].index(p.get('categoria', 'Outros')) if p.get('categoria', 'Outros') in ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"] else 4)
             col_p, col_q = st.columns(2)
-            e_preco = col_p.number_input("Preço", min_value=0.1, value=float(p['preco']), format="%.2f")
-            e_qtd = col_q.number_input("Estoque", min_value=0, step=1, value=int(p['quantidade']))
+            
+            # PROTEÇÃO ADICIONADA AQUI (max(val, limite))
+            e_preco = col_p.number_input("Preço", min_value=0.1, value=max(0.1, float(p['preco'])), format="%.2f")
+            e_qtd = col_q.number_input("Estoque", min_value=0, step=1, value=max(0, int(p['quantidade'])))
             
             # Atualizar Imagem
             e_imagem_upload = st.file_uploader("Trocar Foto (Deixe vazio para manter a atual)", type=["png", "jpg", "jpeg"])

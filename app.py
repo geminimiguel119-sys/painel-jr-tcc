@@ -7,8 +7,7 @@ from datetime import datetime
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="wide")
 
 # --- CONEXÃO COM O BANCO DE DADOS (SUPABASE) ---
-# Substitua a string abaixo pela sua URL do Supabase se não estiver usando o secrets
-DB_URL = st.secrets["DB_URL"] if "DB_URL" in st.secrets else "postgresql://postgres:sua_senha@seu_host:5432/postgres"
+DB_URL = "postgresql://postgres.bfppcxnxqagpesuyjlhe:An1bal_19691910%40@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
 
 def conectar():
     return psycopg2.connect(DB_URL)

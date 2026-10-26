@@ -1,6 +1,7 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="wide")
@@ -295,6 +296,8 @@ elif menu == "Pedidos":
             if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, id_pedido)):
                 st.success(f"Status do pedido #{id_pedido} alterado com sucesso.")
                 st.rerun()
+    else:
+        st.info("Nenhum pedido cadastrado.")
 
 # ==========================================
 # 5. PREDITIVO (INTELIGÊNCIA DE NEGÓCIOS)
@@ -315,6 +318,8 @@ elif menu == "Preditivo":
     df = buscar_dados(query)
     
     if not df.empty:
+        ordens, status_list, cor_borda_list, cor_fundo_list, cor_texto_list, msg_list = [], [], [], [], [], []
+        
         for _, r in df.iterrows():
             estoque = int(r['estoque'])
             vendido = int(r['vendido_30d'])
@@ -332,7 +337,19 @@ elif menu == "Preditivo":
                 status, cor_borda, cor_fundo, cor_texto = "ÍNDICE SAUDÁVEL", "#22c55e", "#f0fdf4", "#166534"
                 msg, ordem = "Projeção de estoque estabilizada. Nenhuma intervenção sistêmica necessária.", 4
                 
-            r['ordem'], r['status'], r['cor_borda'], r['cor_fundo'], r['cor_texto'], r['msg'] = ordem, status, cor_borda, cor_fundo, cor_texto, msg
+            ordens.append(ordem)
+            status_list.append(status)
+            cor_borda_list.append(cor_borda)
+            cor_fundo_list.append(cor_fundo)
+            cor_texto_list.append(cor_texto)
+            msg_list.append(msg)
+            
+        df['ordem'] = ordens
+        df['status'] = status_list
+        df['cor_borda'] = cor_borda_list
+        df['cor_fundo'] = cor_fundo_list
+        df['cor_texto'] = cor_texto_list
+        df['msg'] = msg_list
         
         df = df.sort_values(by=['ordem', 'estoque'])
         
@@ -352,3 +369,5 @@ elif menu == "Preditivo":
                 </div>
             </div>
             """, unsafe_allow_html=True)
+    else:
+        st.info("Nenhum produto cadastrado para análise.")

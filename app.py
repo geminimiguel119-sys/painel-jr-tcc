@@ -31,7 +31,7 @@ st.markdown("""
         display: none !important; 
     }
     
-    /* 2. Textos estruturais em preto nítido (não generalizado em divs) */
+    /* 2. Textos estruturais em preto nítido */
     h1, h2, h3, h4, h5, h6, p, label, small, strong {
         color: #000000 !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
@@ -225,12 +225,18 @@ def obter_logo_html():
 # 3. CONEXÃO AO SUPABASE (GMT-3)
 # ==========================================
 def get_db_connection():
+    db_host = os.getenv("DB_HOST", "aws-0-us-west-2.pooler.supabase.com")
+    db_port = os.getenv("DB_PORT", "5432")
+    db_name = os.getenv("DB_NAME", "postgres")
+    db_user = os.getenv("DB_USER", "postgres.bfppcxnxqagpesuyjlhe")
+    db_pass = os.getenv("DB_PASS", "An1bal_19691910@")
+
     conn = psycopg2.connect(
-        host="aws-0-us-west-2.pooler.supabase.com",
-        port="5432",
-        database="postgres",
-        user="postgres.bfppcxnxqagpesuyjlhe",
-        password="An1bal_19691910@",
+        host=db_host,
+        port=db_port,
+        database=db_name,
+        user=db_user,
+        password=db_pass,
         sslmode="require"
     )
     cursor = conn.cursor()
@@ -247,7 +253,7 @@ def buscar_dados(query, params=None):
         conn.close()
         return df
     except Exception as e:
-        st.error(f"Erro: {e}")
+        st.error(f"Erro na consulta: {e}")
         return pd.DataFrame()
 
 def executar_comando(query, params=None):
@@ -264,8 +270,8 @@ def executar_comando(query, params=None):
         return False
 
 def enviar_telegram_aviso(msg):
-    token = "8700166269:AAE43sggx-efi75G0N97-ZHHrJf0xMye4m4"
-    chat_id = "5034813131"
+    token = os.getenv("TELEGRAM_BOT_TOKEN", "8700166269:AAE43sggx-efi75G0N97-ZHHrJf0xMye4m4")
+    chat_id = os.getenv("TELEGRAM_ADMIN_CHAT_ID", "5034813131")
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         data = urllib.parse.urlencode({"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"}).encode()
@@ -311,7 +317,7 @@ if not st.session_state["autenticado"]:
     senha = st.text_input("Insira sua senha", type="password", placeholder="Insira sua senha")
     st.write("")
     
-    if st.button("Aceder ao Painel", use_container_width=True, type="primary"):
+    if st.button("Acessar o Painel", use_container_width=True, type="primary"):
         if usuario.strip() == "admin" and senha.strip() == "123456":
             st.session_state["autenticado"] = True
             st.rerun()
@@ -339,7 +345,7 @@ else:
         st.markdown("<h4 style='font-weight:900; margin-bottom:12px;'>Métricas da Loja</h4>", unsafe_allow_html=True)
         
         df_prod = buscar_dados("SELECT SUM(quantidade) as total_estoque FROM produtos;")
-        df_ped = buscar_dados("SELECT COUNT(id) as total_pedidos, SUM(total) as faturamento FROM pedidos;")
+        df_ped = buscar_dados("SELECT COUNT(id) as total_pedidos, SUM(total) as faturamento FROM pedidos WHERE status != 'Cancelado';")
         df_cli = buscar_dados("SELECT COUNT(id) as total_clientes FROM usuarios WHERE role='cliente';")
         
         estoque_total = df_prod['total_estoque'].iloc[0] if not df_prod.empty and pd.notna(df_prod['total_estoque'].iloc[0]) else 0
@@ -356,9 +362,23 @@ else:
 
         st.markdown("---")
         st.markdown("<h5 style='font-weight:900;'>Vendas Recentes</h5>", unsafe_allow_html=True)
-        df_vendas_data = buscar_dados("SELECT TO_CHAR(data_pedido, 'DD/MM') as dia, SUM(total) as total_dia FROM pedidos GROUP BY dia ORDER BY dia ASC LIMIT 7")
+        
+        # Consulta cronológica com filtro para pedidos válidos
+        df_vendas_data = buscar_dados("""
+            SELECT TO_CHAR(DATE(data_pedido), 'DD/MM') AS dia,
+                   DATE(data_pedido) AS data_ordem,
+                   SUM(total) AS total_dia
+            FROM pedidos
+            WHERE status != 'Cancelado'
+            GROUP BY DATE(data_pedido)
+            ORDER BY data_ordem DESC
+            LIMIT 7;
+        """)
         if not df_vendas_data.empty:
+            df_vendas_data = df_vendas_data.sort_values('data_ordem', ascending=True)
             st.bar_chart(df_vendas_data.set_index('dia')['total_dia'])
+        else:
+            st.info("Sem histórico de vendas nos últimos dias.")
 
     # ABA PRODUTOS
     elif menu_principal == "📦 Produtos":
@@ -442,7 +462,7 @@ else:
                         st.success("Removido com sucesso.")
                         st.rerun()
 
-    # ABA PREDITIVO (TCC - MODELO DE ENGENHARIA DE SUPRIMENTOS)
+    # ABA PREDITIVO (TCC - MODELO DE ENGENHARIA DE SUPRIMENTOS CORRIGIDO)
     elif menu_principal == "🔮 Preditivo":
         st.markdown("<h4 style='font-weight:900; margin-bottom:4px;'>Controle Preditivo de Estoque</h4>", unsafe_allow_html=True)
         st.markdown("<p style='font-size:0.85rem; color:#475569; margin-bottom:16px;'>Cálculo preditivo de consumo, estimativa de ruptura e ponto de encomenda ao fornecedor.</p>", unsafe_allow_html=True)
@@ -450,23 +470,32 @@ else:
         dias_analise = st.slider("Janela de análise histórica (dias):", min_value=7, max_value=60, value=30)
         lead_time_dias = 5  # Lead Time do fornecedor (dias)
         
-        query_pred = f"""
+        # Query corrigida: usa CASE WHEN para respeitar os dias selecionados e ignorar pedidos cancelados
+        query_pred = """
             SELECT 
                 p.id,
                 p.nome,
-                p.quantidade as estoque_atual,
+                COALESCE(p.quantidade, 0) AS estoque_atual,
                 p.preco,
-                COALESCE(SUM(ip.quantidade), 0) as total_vendido
+                COALESCE(SUM(
+                    CASE 
+                        WHEN ped.id IS NOT NULL 
+                             AND ped.status != 'Cancelado' 
+                             AND ped.data_pedido >= NOW() - (%s * INTERVAL '1 day')
+                        THEN ip.quantidade 
+                        ELSE 0 
+                    END
+                ), 0) AS total_vendido
             FROM produtos p
             LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
-            LEFT JOIN pedidos ped ON ped.id = ip.pedido_id AND ped.data_pedido >= NOW() - INTERVAL '{dias_analise} days'
+            LEFT JOIN pedidos ped ON ped.id = ip.pedido_id
             GROUP BY p.id, p.nome, p.quantidade, p.preco
             ORDER BY estoque_atual ASC;
         """
-        df_pred = buscar_dados(query_pred)
+        df_pred = buscar_dados(query_pred, params=(int(dias_analise),))
 
         if not df_pred.empty:
-            df_pred['cmd'] = df_pred['total_vendido'] / dias_analise
+            df_pred['cmd'] = df_pred['total_vendido'] / float(dias_analise)
             df_pred['dias_restantes'] = df_pred.apply(
                 lambda row: int(row['estoque_atual'] / row['cmd']) if row['cmd'] > 0 else 999, axis=1
             )
@@ -496,7 +525,7 @@ else:
                     </div>
                 """, unsafe_allow_html=True)
         else:
-            st.info("Nenhum registro para estimativa.")
+            st.info("Nenhum produto encontrado para cálculo.")
 
     # ABA PEDIDOS
     elif menu_principal == "🛒 Pedidos":

@@ -5,34 +5,15 @@ import streamlit as st
 import pandas as pd
 
 # ==========================================
-# 1. CONFIGURAÇÃO VISUAL ANTI-TELA BRANCA
+# 1. CONFIGURAÇÃO BASE (SEM CONFLITOS DE COR)
 # ==========================================
 st.set_page_config(page_title="JR Admin", page_icon="💡", layout="centered")
 
+# CSS focado apenas nos Cartões, respeitando o tema do Streamlit para o resto
 st.markdown("""
     <style>
-    /* Força fundo claro e texto escuro globalmente para evitar sumiço no Modo Escuro */
-    html, body, [data-testid="stAppViewContainer"], .main, .block-container {
-        background-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    h1, h2, h3, h4, h5, h6, p, span, div, label, li {
-        color: #000000 !important;
-    }
-    .block-container { max-width: 500px !important; padding-top: 2rem !important; }
+    .block-container { padding-top: 2rem !important; max-width: 600px !important; }
     #MainMenu, header, footer { display: none !important; }
-    
-    .mobile-card {
-        background-color: #f9fafb !important;
-        border: 1px solid #d1d5db !important;
-        border-radius: 8px;
-        padding: 16px;
-        margin-bottom: 12px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    }
-    .badge-critico { background:#fee2e2 !important; color:#991b1b !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
-    .badge-atencao { background:#fef3c7 !important; color:#92400e !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
-    .badge-ok { background:#dcfce7 !important; color:#166534 !important; padding:4px 8px; border-radius:4px; font-weight:bold; font-size:0.8rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -60,7 +41,7 @@ def get_db_connection():
         conn.commit()
         return conn
     except Exception as e:
-        st.error(f"Erro de conexão com o Banco de Dados. Verifique as senhas.")
+        st.error("Erro de conexão com o Banco de Dados. Verifique os Secrets.")
         st.stop()
 
 @st.cache_data(ttl=5)
@@ -70,8 +51,7 @@ def buscar_dados(query, params=None):
         df = pd.read_sql(query, conn, params=params) if params else pd.read_sql(query, conn)
         conn.close()
         return df
-    except Exception as e:
-        st.error(f"Erro ao carregar os dados: {e}")
+    except:
         return pd.DataFrame()
 
 def executar_comando(query, params=None):
@@ -83,8 +63,7 @@ def executar_comando(query, params=None):
         conn.close()
         st.cache_data.clear()
         return True
-    except Exception as e:
-        st.error(f"Erro ao executar operação: {e}")
+    except:
         return False
 
 def validar_login(usuario, senha):
@@ -97,11 +76,13 @@ def validar_login(usuario, senha):
 if "autenticado" not in st.session_state: st.session_state["autenticado"] = False
 
 if not st.session_state["autenticado"]:
-    st.markdown("<h2 style='text-align:center;'>💡 JR Iluminação</h2><p style='text-align:center;'>Painel de Gestão</p>", unsafe_allow_html=True)
+    st.title("💡 JR Iluminação")
+    st.caption("Painel de Gestão e Inteligência")
+    
     usuario = st.text_input("Usuário")
     senha = st.text_input("Senha", type="password")
     
-    if st.button("Entrar", type="primary", use_container_width=True):
+    if st.button("Entrar no Sistema", type="primary", use_container_width=True):
         if validar_login(usuario, senha):
             st.session_state["autenticado"] = True
             st.rerun()
@@ -112,7 +93,7 @@ if not st.session_state["autenticado"]:
 # 4. PAINEL PRINCIPAL
 # ==========================================
 else:
-    c1, c2 = st.columns([3, 1])
+    c1, c2 = st.columns([3, 1], vertical_alignment="center")
     c1.markdown("### 💡 JR Admin")
     if c2.button("Sair", use_container_width=True):
         st.session_state["autenticado"] = False
@@ -138,35 +119,38 @@ else:
     # --- PRODUTOS ---
     elif menu == "Produtos":
         st.subheader("Gerenciar Estoque")
-        acao = st.selectbox("Ação", ["Listar", "Adicionar"])
+        acao = st.selectbox("Ação", ["Listar Todos", "Adicionar Novo"])
         
-        if acao == "Listar":
+        if acao == "Listar Todos":
             df = buscar_dados("SELECT * FROM produtos ORDER BY id DESC")
             if not df.empty:
                 for _, r in df.iterrows():
-                    st.markdown(f"<div class='mobile-card'><b>{r['nome']}</b><br>Preço: R$ {r['preco']:.2f} | Estoque: {r['quantidade']} un.</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        st.markdown(f"**{r['nome']}**")
+                        st.caption(f"Preço: R$ {r['preco']:.2f} | Estoque: {r['quantidade']} unidades")
             else:
                 st.info("Nenhum produto cadastrado.")
                 
-        elif acao == "Adicionar":
-            nome = st.text_input("Nome")
+        elif acao == "Adicionar Novo":
+            nome = st.text_input("Nome do Produto")
             cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"])
             preco = st.number_input("Preço (R$)", min_value=0.1)
-            qtd = st.number_input("Quantidade", min_value=0, step=1)
+            qtd = st.number_input("Quantidade em Estoque", min_value=0, step=1)
             if st.button("Salvar Produto", type="primary"):
                 if nome:
                     if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, 'placeholder.jpg')", (nome, cat, preco, qtd)):
-                        st.success("Produto cadastrado!"); st.rerun()
+                        st.success("Produto cadastrado com sucesso!"); st.rerun()
                 else:
-                    st.warning("Preencha o nome.")
+                    st.warning("Preencha o nome do produto.")
 
-    # --- PREDITIVO SIMPLIFICADO ---
+    # --- PREDITIVO DINÂMICO E VISUAL ---
     elif menu == "Preditivo":
-        st.subheader("Controle Inteligente de Estoque")
-        st.caption("Cálculo direto de Ponto de Reposição e Alertas de Ruptura.")
+        st.subheader("Inteligência de Suprimentos")
+        st.caption("Previsão de ruptura baseada no ritmo real de vendas da loja.")
         
-        dias = st.slider("Analisar vendas dos últimos X dias:", 7, 60, 30)
-        lead_time = 5
+        col_dias, col_lead = st.columns(2)
+        with col_dias: dias = st.slider("Histórico (dias):", 7, 60, 30)
+        with col_lead: lead_time = st.number_input("Prazo do Fornecedor (dias):", 1, 30, 5)
         
         query = """
             SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
@@ -175,7 +159,6 @@ else:
             LEFT JOIN itens_pedido ip ON ip.produto_id = p.id
             LEFT JOIN pedidos ped ON ped.id = ip.pedido_id
             GROUP BY p.id, p.nome, p.quantidade
-            ORDER BY estoque ASC
         """
         df = buscar_dados(query, params=(dias,))
         
@@ -184,23 +167,48 @@ else:
             df['dias_restantes'] = df.apply(lambda r: int(r['estoque'] / r['consumo_diario']) if r['consumo_diario'] > 0 else 999, axis=1)
             df['ponto_reposicao'] = (df['consumo_diario'] * lead_time).round().astype(int) + 2
             
+            # Ordena para os mais críticos aparecerem primeiro
             df = df.sort_values(by='dias_restantes', ascending=True)
             
             for _, r in df.iterrows():
-                if r['dias_restantes'] <= lead_time: badge = f"<span class='badge-critico'>🚨 Crítico ({r['dias_restantes']} dias)</span>"
-                elif r['dias_restantes'] <= 15: badge = f"<span class='badge-atencao'>⚠️ Atenção ({r['dias_restantes']} dias)</span>"
-                else: badge = f"<span class='badge-ok'>✅ Saudável</span>"
-                
+                # Definição de Cores Contrastantes baseada no risco
+                if r['dias_restantes'] <= lead_time:
+                    cor_borda, cor_fundo, status = "#dc2626", "#fef2f2", "🚨 Crítico"
+                    acao_msg = f"Comprar hoje! O estoque vai zerar antes do fornecedor entregar."
+                elif r['dias_restantes'] <= lead_time + 7:
+                    cor_borda, cor_fundo, status = "#f59e0b", "#fffbeb", "⚠️ Atenção"
+                    acao_msg = f"Fazer pedido em breve. Ao chegar em {r['ponto_reposicao']} un. inicie a compra."
+                else:
+                    cor_borda, cor_fundo, status = "#10b981", "#ecfdf5", "✅ Saudável"
+                    acao_msg = f"Estoque seguro. Nenhuma ação necessária no momento."
+
+                texto_dias = f"{r['dias_restantes']} dias" if r['dias_restantes'] != 999 else "+ de 1 ano"
+
+                # HTML do Cartão Preditivo Dinâmico (Cores que não conflitam)
                 st.markdown(f"""
-                    <div class='mobile-card'>
-                        <div style='display:flex; justify-content:space-between; margin-bottom:8px;'>
-                            <b>{r['nome']}</b> {badge}
-                        </div>
-                        <span style='font-size: 0.9rem;'>
-                            Estoque Atual: <b>{r['estoque']} un.</b> | Vendidos: <b>{int(r['vendido'])} un.</b><br>
-                            Repor quando o estoque chegar a: <b style='color:#b91c1c;'>{r['ponto_reposicao']} un.</b>
-                        </span>
+                <div style="background-color: {cor_fundo}; padding: 16px; border-radius: 8px; border-left: 6px solid {cor_borda}; margin-bottom: 15px; border-right: 1px solid #e5e7eb; border-top: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h4 style="margin: 0; color: #111827;">{r['nome']}</h4>
+                        <span style="background: {cor_borda}; color: white; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: bold;">{status}</span>
                     </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                        <div style="text-align: left;">
+                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Estoque</p>
+                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: #1f2937;">{r['estoque']} un.</p>
+                        </div>
+                        <div style="text-align: center;">
+                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Ritmo</p>
+                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: #1f2937;">{r['consumo_diario']:.1f} /dia</p>
+                        </div>
+                        <div style="text-align: right;">
+                            <p style="margin: 0; font-size: 12px; color: #6b7280; text-transform: uppercase;">Zera em</p>
+                            <p style="margin: 0; font-size: 18px; font-weight: 800; color: {cor_borda};">{texto_dias}</p>
+                        </div>
+                    </div>
+                    <div style="background: rgba(255,255,255,0.6); padding: 8px; border-radius: 6px; font-size: 14px; color: #374151;">
+                        💡 <b>Ação:</b> {acao_msg}
+                    </div>
+                </div>
                 """, unsafe_allow_html=True)
         else:
             st.info("Nenhum produto cadastrado para calcular.")
@@ -208,13 +216,15 @@ else:
     # --- PEDIDOS ---
     elif menu == "Pedidos":
         st.subheader("Gestão de Pedidos")
-        acao = st.selectbox("Ação", ["Listar", "Atualizar Status"])
+        acao = st.selectbox("Ação", ["Listar Todos", "Atualizar Status"])
         
-        if acao == "Listar":
+        if acao == "Listar Todos":
             df = buscar_dados("SELECT p.id, c.nome, p.status, p.total FROM pedidos p JOIN clientes c ON p.cliente_id = c.id ORDER BY p.id DESC")
             if not df.empty:
                 for _, r in df.iterrows():
-                    st.markdown(f"<div class='mobile-card'><b>Pedido #{r['id']} - {r['nome']}</b><br>Status: {r['status']} | Total: R$ {r['total']:.2f}</div>", unsafe_allow_html=True)
+                    with st.container(border=True):
+                        st.markdown(f"**Pedido #{r['id']} - {r['nome']}**")
+                        st.caption(f"Status: {r['status']} | Total: R$ {r['total']:.2f}")
             else:
                 st.info("Nenhum pedido encontrado.")
                 
@@ -224,11 +234,11 @@ else:
                 opcoes = {f"Pedido #{r['id']} (Atual: {r['status']})": r['id'] for _, r in df.iterrows()}
                 ped_id = opcoes[st.selectbox("Selecione o Pedido", list(opcoes.keys()))]
                 novo_status = st.selectbox("Novo Status", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
-                if st.button("Atualizar"):
+                if st.button("Atualizar Status", type="primary"):
                     if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, ped_id)):
-                        st.success("Atualizado!"); st.rerun()
+                        st.success("Pedido atualizado com sucesso!"); st.rerun()
             else:
-                st.info("Nenhum pedido encontrado para atualizar.")
+                st.info("Nenhum pedido para atualizar.")
 
     # --- CLIENTES ---
     elif menu == "Clientes":
@@ -236,9 +246,11 @@ else:
         df = buscar_dados("SELECT id, nome, email FROM usuarios WHERE status = 'Pendente' AND role = 'cliente'")
         if not df.empty:
             for _, r in df.iterrows():
-                st.markdown(f"<div class='mobile-card'><b>{r['nome']}</b><br>{r['email']}</div>", unsafe_allow_html=True)
-                if st.button(f"Aprovar Conta #{r['id']}", key=f"btn_{r['id']}"):
-                    if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (r['id'],)):
-                        st.success("Aprovado!"); st.rerun()
+                with st.container(border=True):
+                    st.markdown(f"**{r['nome']}**")
+                    st.caption(f"E-mail: {r['email']}")
+                    if st.button(f"Aprovar Conta", key=f"btn_{r['id']}", type="primary"):
+                        if executar_comando("UPDATE usuarios SET status = 'Aprovado' WHERE id = %s", (r['id'],)):
+                            st.success("Conta aprovada!"); st.rerun()
         else:
-            st.info("Nenhuma conta pendente de aprovação.")
+            st.success("Tudo certo! Nenhuma conta pendente de aprovação.")

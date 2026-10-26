@@ -1,6 +1,7 @@
 import streamlit as st
 import psycopg2
 import pandas as pd
+import base64
 from datetime import datetime
 
 # --- CONFIGURAÇÃO DA PÁGINA (FOCADA EM MOBILE) ---
@@ -9,12 +10,6 @@ st.set_page_config(page_title="App - JR Iluminação", page_icon="📱", layout=
 # --- ESTILOS CSS PERSONALIZADOS (MOBILE RESPONSIVO) ---
 st.markdown("""
     <style>
-    /* Força os elementos a se adaptarem em telas pequenas (wrap) */
-    .card-dashboard {
-        background-color: #ffffff; padding: 20px; border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); border-left: 5px solid #0284c7;
-        margin-bottom: 15px; border-top: 1px solid #f1f5f9; border-right: 1px solid #f1f5f9; border-bottom: 1px solid #f1f5f9;
-    }
     .card-pedido {
         background-color: #ffffff; padding: 15px; border-radius: 10px;
         box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 12px;
@@ -27,8 +22,6 @@ st.markdown("""
     .badge-status {
         padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; white-space: nowrap;
     }
-    
-    /* Esconde botões padrões do menu superior do Streamlit para parecer mais um App */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
@@ -79,6 +72,13 @@ def cor_do_status(status):
     if status == 'Pendente': return "background-color: #fef9c3; color: #854d0e; border: 1px solid #fef08a;"
     return "background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;"
 
+def converter_imagem_base64(uploaded_file):
+    if uploaded_file is not None:
+        b64_str = base64.b64encode(uploaded_file.read()).decode()
+        tipo = uploaded_file.type
+        return f"data:{tipo};base64,{b64_str}"
+    return ""
+
 # --- AUTENTICAÇÃO E SESSÃO ---
 if "logado" not in st.session_state:
     st.session_state.logado = False
@@ -106,7 +106,6 @@ with col_logout:
         st.session_state.logado = False
         st.rerun()
 
-# Menu Horizontal (Funciona como botões de navegação)
 menu = st.radio("Navegação", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"], horizontal=True, label_visibility="collapsed")
 st.divider()
 
@@ -155,7 +154,7 @@ if menu == "Resumo":
         st.info("Nenhum pedido processado.")
 
 # ==========================================
-# 2. PRODUTOS (GESTÃO DE CATÁLOGO)
+# 2. PRODUTOS (COM UPLOAD DE FOTO)
 # ==========================================
 elif menu == "Produtos":
     st.subheader("📦 Produtos")
@@ -169,8 +168,8 @@ elif menu == "Produtos":
                     col_img, col_txt = st.columns([1, 3], vertical_alignment="center")
                     with col_img:
                         img = str(r.get('imagem', '')).strip()
-                        if img and img != 'placeholder.jpg':
-                            st.image(img, use_container_width=True)
+                        if img and img != 'None' and img != 'placeholder.jpg':
+                            st.markdown(f'<img src="{img}" style="width:100%; border-radius:8px; object-fit: cover;">', unsafe_allow_html=True)
                         else:
                             st.markdown("📦 Sem foto")
                     with col_txt:
@@ -186,11 +185,13 @@ elif menu == "Produtos":
         col_p, col_q = st.columns(2)
         preco = col_p.number_input("Preço (R$)", min_value=0.1, format="%.2f")
         qtd = col_q.number_input("Estoque", min_value=0, step=1)
-        img_url = st.text_input("URL da Imagem")
         
-        if st.button("Gravar", type="primary", use_container_width=True):
+        # Upload de Imagem
+        imagem_upload = st.file_uploader("Fazer Upload da Foto", type=["png", "jpg", "jpeg"])
+        
+        if st.button("Gravar Produto", type="primary", use_container_width=True):
             if nome:
-                img_final = img_url if img_url else 'placeholder.jpg'
+                img_final = converter_imagem_base64(imagem_upload)
                 if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, %s)", (nome, cat, preco, qtd, img_final)):
                     st.success("Inserido com sucesso!"); st.rerun()
             else: st.warning("Nome obrigatório.")
@@ -207,10 +208,17 @@ elif menu == "Produtos":
             col_p, col_q = st.columns(2)
             e_preco = col_p.number_input("Preço", min_value=0.1, value=float(p['preco']), format="%.2f")
             e_qtd = col_q.number_input("Estoque", min_value=0, step=1, value=int(p['quantidade']))
-            e_img = st.text_input("URL Imagem", value=str(p.get('imagem', '')))
+            
+            # Atualizar Imagem
+            e_imagem_upload = st.file_uploader("Trocar Foto (Deixe vazio para manter a atual)", type=["png", "jpg", "jpeg"])
             
             if st.button("Atualizar", type="primary", use_container_width=True):
-                if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, imagem=%s WHERE id=%s", (e_nome, e_cat, e_preco, e_qtd, e_img, prod_id)):
+                if e_imagem_upload:
+                    img_final = converter_imagem_base64(e_imagem_upload)
+                else:
+                    img_final = str(p.get('imagem', ''))
+                    
+                if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, imagem=%s WHERE id=%s", (e_nome, e_cat, e_preco, e_qtd, img_final, prod_id)):
                     st.success("Atualizado!"); st.rerun()
 
     with tab4:

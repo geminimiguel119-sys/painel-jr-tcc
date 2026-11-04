@@ -1,44 +1,82 @@
+import os
 import streamlit as st
 import psycopg2
 import pandas as pd
 import base64
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DA PÁGINA (TEMA CORPORATIVO) ---
+# ==========================================
+# 1. FORÇAR TEMA CLARO NATIVO (RESOLVE TEXTOS INVISÍVEIS)
+# ==========================================
+def forcar_tema_claro():
+    if not os.path.exists(".streamlit"):
+        os.makedirs(".streamlit")
+    config_path = ".streamlit/config.toml"
+    config_content = """[theme]
+base="light"
+primaryColor="#004aad"
+backgroundColor="#f4f7fb"
+secondaryBackgroundColor="#ffffff"
+textColor="#0f172a"
+"""
+    try:
+        with open(config_path, "r") as f:
+            if f.read().strip() == config_content.strip():
+                return
+    except:
+        pass
+    with open(config_path, "w") as f:
+        f.write(config_content)
+
+# Executa a criação do tema antes de renderizar a página
+forcar_tema_claro()
+
+# --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="centered")
 
-# --- FORÇAR LINGUAGEM PT-BR E CORREÇÃO DE TEXTOS INVISÍVEIS ---
+# --- FORÇAR LINGUAGEM PT-BR E BLINDAGEM CSS ---
 st.markdown("""
     <script>document.documentElement.lang = 'pt-BR';</script>
     <style>
-    /* ==========================================
-       CORREÇÃO DO BUG DE TEXTO INVISÍVEL (MODO ESCURO)
-       Garante que nenhum texto fique branco no fundo claro
-       ========================================== */
-    .stApp {
-        background-color: #f4f7fb !important;
-    }
+    /* Fundo Geral */
+    .stApp { background-color: #f4f7fb !important; }
     
-    /* Força as labels (nomes em cima dos campos) a ficarem escuras */
-    label, .stLabel, [data-testid="stMarkdownContainer"] p {
+    /* ==========================================
+       BLINDAGEM CONTRA TEXTO INVISÍVEL
+       ========================================== */
+    /* Títulos dos campos (Labels) e Tabs */
+    .stSelectbox label p, .stTextInput label p, .stNumberInput label p, .stFileUploader label p, .stTabs [data-baseweb="tab"] p {
+        color: #004aad !important;
+        font-weight: 700 !important;
+    }
+
+    /* Texto dentro da caixa de seleção (Selectbox) */
+    div[data-baseweb="select"] span {
         color: #0f172a !important;
         font-weight: 600 !important;
     }
 
-    /* Força o texto dentro dos dropdowns (menus) e abas a aparecerem */
-    div[data-baseweb="select"] *, button[data-baseweb="tab"] * {
-        color: #004aad !important;
+    /* Texto da lista suspensa do Selectbox (quando abre) */
+    ul[role="listbox"] li {
+        color: #0f172a !important;
+        background-color: #ffffff !important;
     }
 
-    /* Força a cor dos inputs de texto numéricos e campos de arquivo */
-    input, textarea, .stFileUploader * {
-        color: #1e293b !important;
+    /* Texto dos inputs digitáveis */
+    input[type="text"], input[type="number"], input[type="password"] {
+        color: #0f172a !important;
+        background-color: #ffffff !important;
     }
-    
+
+    /* Trava para impedir digitação no Selectbox no Mobile */
+    div[data-baseweb="select"] input {
+        pointer-events: none !important;
+        caret-color: transparent !important;
+    }
+
     /* ==========================================
-       ESTILOS CORPORATIVOS DO PAINEL
+       ESTILOS CORPORATIVOS
        ========================================== */
-    /* Botões Primários */
     .stButton>button[kind="primary"] {
         background-color: #004aad !important;
         color: white !important;
@@ -49,65 +87,33 @@ st.markdown("""
     }
     .stButton>button[kind="primary"]:hover {
         background-color: #003377 !important;
-        box-shadow: 0 4px 8px rgba(0,74,173,0.3);
     }
 
-    /* Cards Profissionais */
     .card-pro {
-        background-color: #ffffff; 
-        padding: 18px; 
-        border-radius: 8px;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.04); 
-        margin-bottom: 15px;
-        border: 1px solid #e1e8f0; 
-        border-left: 5px solid #004aad;
-        display: flex; 
-        flex-wrap: wrap; 
-        gap: 10px; 
-        justify-content: space-between; 
-        align-items: center;
+        background-color: #ffffff; padding: 18px; border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.04); margin-bottom: 15px;
+        border: 1px solid #e1e8f0; border-left: 5px solid #004aad;
+        display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;
     }
     
     .card-cliente {
-        background-color: #ffffff; 
-        padding: 15px; 
-        border-radius: 8px;
-        border: 1px solid #e1e8f0; 
-        border-left: 5px solid #0284c7;
-        margin-bottom: 12px; 
-        display: flex; 
-        align-items: center; 
-        gap: 15px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        background-color: #ffffff; padding: 15px; border-radius: 8px;
+        border: 1px solid #e1e8f0; border-left: 5px solid #0284c7;
+        margin-bottom: 12px; display: flex; align-items: center; gap: 15px;
     }
 
-    /* Badges de Status - Protegendo a cor branca aqui */
     .badge-status {
-        padding: 6px 14px; 
-        border-radius: 20px; 
-        font-size: 11px; 
-        font-weight: bold; 
-        text-transform: uppercase; 
-        white-space: nowrap;
-        letter-spacing: 0.5px;
-        color: #ffffff !important;
+        padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: bold; 
+        text-transform: uppercase; white-space: nowrap; color: #ffffff !important;
     }
 
-    /* Métricas do Dashboard */
     .metric-box {
-        background-color: #ffffff;
-        border: 1px solid #e1e8f0;
-        border-top: 4px solid #004aad;
-        padding: 20px;
-        border-radius: 8px;
-        text-align: center;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+        background-color: #ffffff; border: 1px solid #e1e8f0; border-top: 4px solid #004aad;
+        padding: 20px; border-radius: 8px; text-align: center;
     }
-    
     .metric-title { color: #64748b !important; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
     .metric-value { color: #0f172a !important; font-size: 26px; font-weight: 800; margin: 0; }
 
-    /* Esconder menus padrão do Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
@@ -217,7 +223,7 @@ if menu == "Resumo":
         st.markdown(f"<div class='metric-box'><div class='metric-title'>Clientes</div><div class='metric-value'>{total_clientes}</div></div>", unsafe_allow_html=True)
     
     st.divider()
-    st.markdown("<h5 style='color: #333 !important;'>Últimos Pedidos Processados</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #0f172a !important;'>Últimos Pedidos Processados</h5>", unsafe_allow_html=True)
     ultimos = buscar_dados("SELECT id, total, status, data_pedido FROM pedidos ORDER BY data_pedido DESC LIMIT 5")
     
     if not ultimos.empty:
@@ -326,7 +332,7 @@ elif menu == "Clientes":
     
     df_clientes = buscar_dados("SELECT * FROM clientes ORDER BY id DESC")
     if not df_clientes.empty:
-        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b>🔐 Liberação de Acesso</b><p style='font-size: 13px; color: #64748b;'>Aprove contas pendentes para que os clientes possam acessar o e-commerce.</p>", unsafe_allow_html=True)
+        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b style='color:#0f172a;'>🔐 Liberação de Acesso</b><p style='font-size: 13px; color: #64748b;'>Aprove contas pendentes para que os clientes possam acessar o e-commerce.</p>", unsafe_allow_html=True)
         
         opcoes_clientes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_clientes.iterrows()}
         cliente_selecionado = st.selectbox("Selecione a conta para aprovação", list(opcoes_clientes.keys()))
@@ -342,7 +348,7 @@ elif menu == "Clientes":
         st.markdown("</div>", unsafe_allow_html=True)
             
         st.divider()
-        st.markdown("##### Base de Clientes Cadastrados")
+        st.markdown("<h5 style='color: #0f172a !important;'>Base de Clientes Cadastrados</h5>", unsafe_allow_html=True)
         for _, c in df_clientes.iterrows():
             st.markdown(f"""
             <div class="card-cliente">
@@ -369,7 +375,7 @@ elif menu == "Pedidos":
     """)
     
     if not df_pedidos.empty:
-        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b>🔄 Atualização de Status</b>", unsafe_allow_html=True)
+        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b style='color:#0f172a;'>🔄 Atualização de Status</b>", unsafe_allow_html=True)
         opcoes_pedidos = {f"#{r['id']} - {r['cliente']}": r['id'] for _, r in df_pedidos.iterrows()}
         id_pedido = opcoes_pedidos[st.selectbox("Selecionar Pedido", list(opcoes_pedidos.keys()))]
         novo_status = st.selectbox("Novo Status Operacional", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
@@ -384,7 +390,7 @@ elif menu == "Pedidos":
         st.markdown("</div>", unsafe_allow_html=True)
                 
         st.divider()
-        st.markdown("<h5 style='color: #333 !important;'>Histórico de Operações</h5>", unsafe_allow_html=True)
+        st.markdown("<h5 style='color: #0f172a !important;'>Histórico de Operações</h5>", unsafe_allow_html=True)
         for _, p in df_pedidos.iterrows():
             data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m/%Y às %H:%M")
             estilo_status = cor_do_status(p['status'])

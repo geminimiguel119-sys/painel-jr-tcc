@@ -84,7 +84,16 @@ st.markdown("""
     .metric-title { color: #64748b; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
     .metric-value { color: #0f172a; font-size: 26px; font-weight: 800; margin: 0; }
 
-    /* Estilização do Menu Mobile para garantir visibilidade do texto */
+    /* ==========================================
+       TRAVA DE SEGURANÇA PARA AS CAIXAS DE SELEÇÃO (DROPDOWNS)
+       Impede o usuário de apagar o texto ou abrir o teclado no celular
+       ========================================== */
+    div[data-baseweb="select"] input {
+        pointer-events: none !important;
+        caret-color: transparent !important;
+    }
+    
+    /* Estilização do Menu Mobile */
     .stSelectbox label { color: #004aad !important; font-weight: 700; font-size: 16px; }
 
     /* Esconder menus padrão do Streamlit */
@@ -161,7 +170,7 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# HEADER E NAVEGAÇÃO TOPO (CORRIGIDO PARA MOBILE)
+# HEADER E NAVEGAÇÃO TOPO
 # ==========================================
 col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
 with col_logo:
@@ -172,7 +181,7 @@ with col_logout:
         st.rerun()
 
 st.write("") # Espaçamento
-# Usando Selectbox no lugar do Radio garante que o texto fique 100% legível no celular
+# O menu agora é blindado contra digitação
 menu = st.selectbox("📍 Navegação do Sistema", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"])
 st.divider()
 

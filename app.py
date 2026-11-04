@@ -7,8 +7,9 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA (TEMA CORPORATIVO) ---
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="centered")
 
-# --- ESTILOS CSS PERSONALIZADOS (BRANCO E AZUL PROFISSIONAL) ---
+# --- FORÇAR LINGUAGEM PT-BR E ESTILOS CSS ---
 st.markdown("""
+    <script>document.documentElement.lang = 'pt-BR';</script>
     <style>
     /* Fundo do App e Textos */
     .stApp {
@@ -83,6 +84,9 @@ st.markdown("""
     .metric-title { color: #64748b; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
     .metric-value { color: #0f172a; font-size: 26px; font-weight: 800; margin: 0; }
 
+    /* Estilização do Menu Mobile para garantir visibilidade do texto */
+    .stSelectbox label { color: #004aad !important; font-weight: 700; font-size: 16px; }
+
     /* Esconder menus padrão do Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
@@ -118,7 +122,7 @@ def executar_comando(query, params=None):
         conn.commit()
         return True
     except Exception as e:
-        st.error(f"Erro na execução (Rollback acionado): {e}")
+        st.error(f"Erro na execução: {e}")
         if conn:
             conn.rollback()
         return False
@@ -157,17 +161,19 @@ if not st.session_state.logado:
     st.stop()
 
 # ==========================================
-# HEADER E NAVEGAÇÃO TOPO
+# HEADER E NAVEGAÇÃO TOPO (CORRIGIDO PARA MOBILE)
 # ==========================================
 col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
 with col_logo:
     st.markdown("<h2 style='margin:0; color: #004aad; font-weight: 700;'>💡 Painel JR</h2>", unsafe_allow_html=True)
 with col_logout:
-    if st.button("Sair (Logout)", use_container_width=True):
+    if st.button("Sair", use_container_width=True):
         st.session_state.logado = False
         st.rerun()
 
-menu = st.radio("Navegação", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"], horizontal=True, label_visibility="collapsed")
+st.write("") # Espaçamento
+# Usando Selectbox no lugar do Radio garante que o texto fique 100% legível no celular
+menu = st.selectbox("📍 Navegação do Sistema", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"])
 st.divider()
 
 # ==========================================
@@ -294,7 +300,7 @@ elif menu == "Produtos":
                     st.success("Produto removido do banco de dados!"); st.rerun()
 
 # ==========================================
-# 3. CLIENTES E CONTROLE DE ACESSO (CORRIGIDO)
+# 3. CLIENTES E CONTROLE DE ACESSO
 # ==========================================
 elif menu == "Clientes":
     st.markdown("<h4 style='color: #004aad;'>👥 Aprovação e Controle de Clientes</h4>", unsafe_allow_html=True)
@@ -303,22 +309,17 @@ elif menu == "Clientes":
     if not df_clientes.empty:
         st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b>🔐 Liberação de Acesso</b><p style='font-size: 13px; color: #64748b;'>Aprove contas pendentes para que os clientes possam acessar o e-commerce.</p>", unsafe_allow_html=True)
         
-        # Mapeando o ID real do cliente para o banco de dados
         opcoes_clientes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_clientes.iterrows()}
         cliente_selecionado = st.selectbox("Selecione a conta para aprovação", list(opcoes_clientes.keys()))
         id_cliente_aprovar = opcoes_clientes[cliente_selecionado]
         nome_cliente = cliente_selecionado.split('-')[1].strip()
 
-        # O BUG ESTAVA AQUI: Agora ele executa um comando SQL UPDATE real
         if st.button("✅ Aprovar e Liberar Acesso", use_container_width=True, type="primary"):
-            # Atualiza o status do cliente (ou um campo similar, garantindo registro na tabela)
-            # Obs: Se sua tabela usar outro nome pra coluna de status, mude "status = 'Aprovado'" conforme sua estrutura
             try:
-                # Tenta atualizar a coluna status. Se a coluna não existir, ele ignora silenciosamente o erro visual, mas funciona como log se existir
                 executar_comando("UPDATE clientes SET status = 'Aprovado' WHERE id = %s", (id_cliente_aprovar,))
                 st.success(f"Acesso liberado com sucesso para o cliente: {nome_cliente}")
             except Exception as e:
-                st.error("Erro ao atualizar status. Verifique as colunas do banco de dados.")
+                st.error("Erro ao atualizar status.")
         st.markdown("</div>", unsafe_allow_html=True)
             
         st.divider()

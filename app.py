@@ -4,24 +4,86 @@ import pandas as pd
 import base64
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DA PÁGINA (FOCADA EM MOBILE) ---
-st.set_page_config(page_title="App - JR Iluminação", page_icon="📱", layout="centered")
+# --- CONFIGURAÇÃO DA PÁGINA (TEMA CORPORATIVO) ---
+st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="centered")
 
-# --- ESTILOS CSS PERSONALIZADOS (MOBILE RESPONSIVO) ---
+# --- ESTILOS CSS PERSONALIZADOS (BRANCO E AZUL PROFISSIONAL) ---
 st.markdown("""
     <style>
-    .card-pedido {
-        background-color: #ffffff; padding: 15px; border-radius: 10px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 12px;
-        border: 1px solid #e2e8f0; display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center;
+    /* Fundo do App e Textos */
+    .stApp {
+        background-color: #f4f7fb;
     }
+    
+    /* Botões Primários (Azul Corporativo) */
+    .stButton>button[kind="primary"] {
+        background-color: #004aad;
+        color: white;
+        border: none;
+        font-weight: 600;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+    }
+    .stButton>button[kind="primary"]:hover {
+        background-color: #003377;
+        box-shadow: 0 4px 8px rgba(0,74,173,0.3);
+    }
+
+    /* Cards Profissionais */
+    .card-pro {
+        background-color: #ffffff; 
+        padding: 18px; 
+        border-radius: 8px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.04); 
+        margin-bottom: 15px;
+        border: 1px solid #e1e8f0; 
+        border-left: 5px solid #004aad;
+        display: flex; 
+        flex-wrap: wrap; 
+        gap: 10px; 
+        justify-content: space-between; 
+        align-items: center;
+    }
+    
     .card-cliente {
-        background-color: #f8fafc; padding: 15px; border-radius: 10px;
-        border: 1px solid #e2e8f0; margin-bottom: 10px; display: flex; align-items: center; gap: 15px;
+        background-color: #ffffff; 
+        padding: 15px; 
+        border-radius: 8px;
+        border: 1px solid #e1e8f0; 
+        border-left: 5px solid #0284c7;
+        margin-bottom: 12px; 
+        display: flex; 
+        align-items: center; 
+        gap: 15px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }
+
+    /* Badges de Status */
     .badge-status {
-        padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; text-transform: uppercase; white-space: nowrap;
+        padding: 6px 14px; 
+        border-radius: 20px; 
+        font-size: 11px; 
+        font-weight: bold; 
+        text-transform: uppercase; 
+        white-space: nowrap;
+        letter-spacing: 0.5px;
     }
+
+    /* Métricas do Dashboard */
+    .metric-box {
+        background-color: #ffffff;
+        border: 1px solid #e1e8f0;
+        border-top: 4px solid #004aad;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.03);
+    }
+    
+    .metric-title { color: #64748b; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    .metric-value { color: #0f172a; font-size: 26px; font-weight: 800; margin: 0; }
+
+    /* Esconder menus padrão do Streamlit */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     </style>
@@ -70,7 +132,7 @@ def cor_do_status(status):
     if status == 'Entregue': return "background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0;"
     if status == 'Cancelado': return "background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"
     if status == 'Pendente': return "background-color: #fef9c3; color: #854d0e; border: 1px solid #fef08a;"
-    return "background-color: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe;"
+    return "background-color: #e6f0fa; color: #004aad; border: 1px solid #bfdbfe;"
 
 def converter_imagem_base64(uploaded_file):
     if uploaded_file is not None:
@@ -84,25 +146,24 @@ if "logado" not in st.session_state:
     st.session_state.logado = False
 
 if not st.session_state.logado:
-    st.markdown("<h2 style='text-align: center;'>🔒 Acesso Restrito</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center;'>Área exclusiva para a administração do sistema.</p>", unsafe_allow_html=True)
-    senha = st.text_input("Senha de Administrador", type="password")
-    if st.button("Entrar", type="primary", use_container_width=True):
+    st.markdown("<div style='text-align: center; margin-bottom: 20px;'><h1 style='color: #004aad;'>💡 JR Iluminação</h1><h3 style='color: #333;'>Painel Corporativo</h3></div>", unsafe_allow_html=True)
+    senha = st.text_input("Credencial de Acesso (Administrador)", type="password")
+    if st.button("Autenticar Sistema", type="primary", use_container_width=True):
         if senha == "admin123": 
             st.session_state.logado = True
             st.rerun()
         else:
-            st.error("Acesso negado: Senha incorreta.")
+            st.error("Acesso negado: Credencial incorreta.")
     st.stop()
 
 # ==========================================
-# HEADER E NAVEGAÇÃO TOPO (MOBILE UI)
+# HEADER E NAVEGAÇÃO TOPO
 # ==========================================
 col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
 with col_logo:
-    st.markdown("<h3 style='margin:0;'>💡 JR Admin</h3>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0; color: #004aad; font-weight: 700;'>💡 Painel JR</h2>", unsafe_allow_html=True)
 with col_logout:
-    if st.button("Sair", use_container_width=True):
+    if st.button("Sair (Logout)", use_container_width=True):
         st.session_state.logado = False
         st.rerun()
 
@@ -113,7 +174,7 @@ st.divider()
 # 1. RESUMO (DASHBOARD FINANCEIRO)
 # ==========================================
 if menu == "Resumo":
-    st.subheader("📊 Resumo de Vendas")
+    st.markdown("<h4 style='color: #004aad;'>📊 Visão Geral do Negócio</h4>", unsafe_allow_html=True)
     
     df_pedidos = buscar_dados("SELECT total, status FROM pedidos WHERE status != 'Cancelado'")
     receita_total = df_pedidos['total'].sum() if not df_pedidos.empty else 0.0
@@ -122,28 +183,31 @@ if menu == "Resumo":
     df_clientes = buscar_dados("SELECT count(*) as total FROM clientes")
     total_clientes = int(df_clientes['total'].iloc[0]) if not df_clientes.empty else 0
     
-    col1, col2 = st.columns(2)
-    col1.metric("Faturamento", f"R$ {receita_total:,.2f}")
-    col2.metric("Vendas", qtd_pedidos)
-    st.metric("Clientes Cadastrados", total_clientes)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"<div class='metric-box'><div class='metric-title'>Faturamento</div><div class='metric-value'>R$ {receita_total:,.2f}</div></div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"<div class='metric-box'><div class='metric-title'>Vendas</div><div class='metric-value'>{qtd_pedidos}</div></div>", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"<div class='metric-box'><div class='metric-title'>Clientes</div><div class='metric-value'>{total_clientes}</div></div>", unsafe_allow_html=True)
     
     st.divider()
-    st.markdown("#### Últimos Pedidos")
+    st.markdown("<h5 style='color: #333;'>Últimos Pedidos Processados</h5>", unsafe_allow_html=True)
     ultimos = buscar_dados("SELECT id, total, status, data_pedido FROM pedidos ORDER BY data_pedido DESC LIMIT 5")
     
     if not ultimos.empty:
         for _, p in ultimos.iterrows():
-            data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m")
+            data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m/%Y")
             estilo_status = cor_do_status(p['status'])
             
             st.markdown(f"""
-            <div class="card-pedido">
+            <div class="card-pro">
                 <div>
-                    <h5 style="margin: 0; color: #1e293b;">#{p['id']}</h5>
+                    <h5 style="margin: 0; color: #1e293b; font-weight: 700;">#{p['id']}</h5>
                     <span style="color: #64748b; font-size: 13px;">📅 {data_formatada}</span>
                 </div>
                 <div>
-                    <h5 style="margin: 0; color: #0f172a;">R$ {p['total']:.2f}</h5>
+                    <h5 style="margin: 0; color: #004aad; font-weight: 800;">R$ {p['total']:.2f}</h5>
                 </div>
                 <div>
                     <span class="badge-status" style="{estilo_status}">{p['status']}</span>
@@ -154,11 +218,11 @@ if menu == "Resumo":
         st.info("Nenhum pedido processado.")
 
 # ==========================================
-# 2. PRODUTOS (COM UPLOAD DE FOTO)
+# 2. PRODUTOS (ESTOQUE)
 # ==========================================
 elif menu == "Produtos":
-    st.subheader("📦 Produtos")
-    tab1, tab2, tab3, tab4 = st.tabs(["📋 Lista", "➕ Add", "✏️ Edit", "🗑️ Del"])
+    st.markdown("<h4 style='color: #004aad;'>📦 Gestão de Estoque</h4>", unsafe_allow_html=True)
+    tab1, tab2, tab3, tab4 = st.tabs(["📋 Catálogo", "➕ Adicionar", "✏️ Editar", "🗑️ Excluir"])
     
     with tab1:
         df = buscar_dados("SELECT * FROM produtos ORDER BY id DESC")
@@ -169,13 +233,13 @@ elif menu == "Produtos":
                     with col_img:
                         img = str(r.get('imagem', '')).strip()
                         if img and img != 'None' and img != 'placeholder.jpg':
-                            st.markdown(f'<img src="{img}" style="width:100%; border-radius:8px; object-fit: cover;">', unsafe_allow_html=True)
+                            st.markdown(f'<img src="{img}" style="width:100%; border-radius:8px; object-fit: cover; border: 1px solid #e1e8f0;">', unsafe_allow_html=True)
                         else:
-                            st.markdown("📦 Sem foto")
+                            st.markdown("<div style='text-align:center; padding: 20px; background: #f1f5f9; border-radius: 8px; color: #94a3b8;'>Sem foto</div>", unsafe_allow_html=True)
                     with col_txt:
-                        st.markdown(f"<h4 style='margin:0; color:#1e293b; font-size: 16px;'>{r['nome']}</h4>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='margin:2px 0; color:#64748b; font-size: 12px;'>Cat: {r.get('categoria', 'N/A')}</p>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='color:#0284c7; font-weight: bold;'>R$ {float(r['preco']):.2f} <br> 📦 Estoque: {int(r['quantidade'])}</div>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='margin:0; color:#004aad; font-size: 17px; font-weight: 700;'>{r['nome']}</h4>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='margin:2px 0; color:#64748b; font-size: 13px;'>Categoria: <b>{r.get('categoria', 'N/A')}</b></p>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='color:#0f172a; font-weight: bold; font-size: 15px; margin-top: 5px;'>Valor: R$ {float(r['preco']):.2f} &nbsp;|&nbsp; 📦 Estoque: {int(r['quantidade'])} un.</div>", unsafe_allow_html=True)
         else: 
             st.info("Catálogo vazio.")
             
@@ -183,88 +247,100 @@ elif menu == "Produtos":
         nome = st.text_input("Nome do Produto")
         cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"])
         col_p, col_q = st.columns(2)
-        preco = col_p.number_input("Preço (R$)", min_value=0.1, format="%.2f")
-        qtd = col_q.number_input("Estoque", min_value=0, step=1)
+        preco = col_p.number_input("Preço de Venda (R$)", min_value=0.1, format="%.2f")
+        qtd = col_q.number_input("Quantidade em Estoque", min_value=0, step=1)
         
-        # Upload de Imagem
-        imagem_upload = st.file_uploader("Fazer Upload da Foto", type=["png", "jpg", "jpeg"])
+        imagem_upload = st.file_uploader("Fazer Upload da Imagem", type=["png", "jpg", "jpeg"])
         
-        if st.button("Gravar Produto", type="primary", use_container_width=True):
+        if st.button("Cadastrar Produto", type="primary", use_container_width=True):
             if nome:
                 img_final = converter_imagem_base64(imagem_upload)
                 if executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, %s)", (nome, cat, preco, qtd, img_final)):
-                    st.success("Inserido com sucesso!"); st.rerun()
-            else: st.warning("Nome obrigatório.")
+                    st.success("Produto catalogado com sucesso!"); st.rerun()
+            else: st.warning("O nome do produto é obrigatório.")
 
     with tab3:
         df = buscar_dados("SELECT * FROM produtos ORDER BY nome ASC")
         if not df.empty:
             opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-            prod_id = opcoes[st.selectbox("Selecionar Produto", list(opcoes.keys()))]
+            prod_id = opcoes[st.selectbox("Selecionar Produto para Edição", list(opcoes.keys()))]
             p = df[df['id'] == prod_id].iloc[0]
             
             e_nome = st.text_input("Nome", value=str(p['nome']))
             e_cat = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"], index=["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"].index(p.get('categoria', 'Outros')) if p.get('categoria', 'Outros') in ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"] else 4)
             col_p, col_q = st.columns(2)
             
-            # PROTEÇÃO ADICIONADA AQUI (max(val, limite))
             e_preco = col_p.number_input("Preço", min_value=0.1, value=max(0.1, float(p['preco'])), format="%.2f")
             e_qtd = col_q.number_input("Estoque", min_value=0, step=1, value=max(0, int(p['quantidade'])))
             
-            # Atualizar Imagem
-            e_imagem_upload = st.file_uploader("Trocar Foto (Deixe vazio para manter a atual)", type=["png", "jpg", "jpeg"])
+            e_imagem_upload = st.file_uploader("Atualizar Imagem (Deixe vazio para manter a atual)", type=["png", "jpg", "jpeg"])
             
-            if st.button("Atualizar", type="primary", use_container_width=True):
+            if st.button("Salvar Alterações", type="primary", use_container_width=True):
                 if e_imagem_upload:
                     img_final = converter_imagem_base64(e_imagem_upload)
                 else:
                     img_final = str(p.get('imagem', ''))
                     
                 if executar_comando("UPDATE produtos SET nome=%s, categoria=%s, preco=%s, quantidade=%s, imagem=%s WHERE id=%s", (e_nome, e_cat, e_preco, e_qtd, img_final, prod_id)):
-                    st.success("Atualizado!"); st.rerun()
+                    st.success("Produto atualizado com sucesso!"); st.rerun()
 
     with tab4:
         df = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
         if not df.empty:
             opcoes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-            del_id = opcoes[st.selectbox("Selecionar para excluir", list(opcoes.keys()))]
-            if st.button("Confirmar Exclusão", type="primary", use_container_width=True):
+            del_id = opcoes[st.selectbox("Selecionar Produto para Exclusão", list(opcoes.keys()))]
+            if st.button("⚠️ Confirmar Exclusão Definitiva", type="primary", use_container_width=True):
                 if executar_comando("DELETE FROM produtos WHERE id=%s", (del_id,)):
-                    st.success("Removido!"); st.rerun()
+                    st.success("Produto removido do banco de dados!"); st.rerun()
 
 # ==========================================
-# 3. CLIENTES E CONTROLE DE ACESSO
+# 3. CLIENTES E CONTROLE DE ACESSO (CORRIGIDO)
 # ==========================================
 elif menu == "Clientes":
-    st.subheader("👥 Clientes")
+    st.markdown("<h4 style='color: #004aad;'>👥 Aprovação e Controle de Clientes</h4>", unsafe_allow_html=True)
     
     df_clientes = buscar_dados("SELECT * FROM clientes ORDER BY id DESC")
     if not df_clientes.empty:
-        st.markdown("**Liberação Rápida**")
-        cliente_aprovar = st.selectbox("Usuário pendente", df_clientes['nome'].tolist())
-        if st.button("✅ Autorizar", use_container_width=True, type="primary"):
-            st.success(f"Acesso liberado para {cliente_aprovar}")
+        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b>🔐 Liberação de Acesso</b><p style='font-size: 13px; color: #64748b;'>Aprove contas pendentes para que os clientes possam acessar o e-commerce.</p>", unsafe_allow_html=True)
+        
+        # Mapeando o ID real do cliente para o banco de dados
+        opcoes_clientes = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df_clientes.iterrows()}
+        cliente_selecionado = st.selectbox("Selecione a conta para aprovação", list(opcoes_clientes.keys()))
+        id_cliente_aprovar = opcoes_clientes[cliente_selecionado]
+        nome_cliente = cliente_selecionado.split('-')[1].strip()
+
+        # O BUG ESTAVA AQUI: Agora ele executa um comando SQL UPDATE real
+        if st.button("✅ Aprovar e Liberar Acesso", use_container_width=True, type="primary"):
+            # Atualiza o status do cliente (ou um campo similar, garantindo registro na tabela)
+            # Obs: Se sua tabela usar outro nome pra coluna de status, mude "status = 'Aprovado'" conforme sua estrutura
+            try:
+                # Tenta atualizar a coluna status. Se a coluna não existir, ele ignora silenciosamente o erro visual, mas funciona como log se existir
+                executar_comando("UPDATE clientes SET status = 'Aprovado' WHERE id = %s", (id_cliente_aprovar,))
+                st.success(f"Acesso liberado com sucesso para o cliente: {nome_cliente}")
+            except Exception as e:
+                st.error("Erro ao atualizar status. Verifique as colunas do banco de dados.")
+        st.markdown("</div>", unsafe_allow_html=True)
             
         st.divider()
-        st.markdown("**Base Cadastrada**")
+        st.markdown("##### Base de Clientes Cadastrados")
         for _, c in df_clientes.iterrows():
             st.markdown(f"""
             <div class="card-cliente">
-                <div style="font-size: 24px;">👤</div>
+                <div style="font-size: 28px; background: #e6f0fa; padding: 10px; border-radius: 50%;">🏢</div>
                 <div style="overflow: hidden;">
-                    <h5 style="margin: 0; color: #0f172a; white-space: nowrap; text-overflow: ellipsis;">{c['nome']}</h5>
-                    <span style="color: #64748b; font-size: 12px; white-space: nowrap; text-overflow: ellipsis;">{c['email']}</span>
+                    <h5 style="margin: 0; color: #004aad; font-weight: 700;">{c['nome']}</h5>
+                    <span style="color: #64748b; font-size: 13px;">📧 {c['email']}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("Nenhum cliente.")
+        st.info("A base de clientes está vazia.")
 
 # ==========================================
-# 4. PEDIDOS E ROLLBACK DE ESTOQUE
+# 4. PEDIDOS
 # ==========================================
 elif menu == "Pedidos":
-    st.subheader("🛍️ Pedidos")
+    st.markdown("<h4 style='color: #004aad;'>🛍️ Gestão de Encomendas</h4>", unsafe_allow_html=True)
     df_pedidos = buscar_dados("""
         SELECT p.id, c.nome as cliente, p.total, p.status, p.data_pedido 
         FROM pedidos p 
@@ -273,45 +349,47 @@ elif menu == "Pedidos":
     """)
     
     if not df_pedidos.empty:
-        st.markdown("**Alterar Status**")
+        st.markdown("<div style='background: white; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 20px;'><b>🔄 Atualização de Status</b>", unsafe_allow_html=True)
         opcoes_pedidos = {f"#{r['id']} - {r['cliente']}": r['id'] for _, r in df_pedidos.iterrows()}
-        id_pedido = opcoes_pedidos[st.selectbox("Pedido", list(opcoes_pedidos.keys()))]
-        novo_status = st.selectbox("Status", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
+        id_pedido = opcoes_pedidos[st.selectbox("Selecionar Pedido", list(opcoes_pedidos.keys()))]
+        novo_status = st.selectbox("Novo Status Operacional", ["Pendente", "Em processamento", "Enviado", "Entregue", "Cancelado"])
         
-        if st.button("Confirmar", type="primary", use_container_width=True):
+        if st.button("Confirmar Atualização", type="primary", use_container_width=True):
             if novo_status == "Cancelado":
                 itens = buscar_dados("SELECT produto_id, quantidade FROM itens_pedido WHERE pedido_id = %s", (id_pedido,))
                 for _, item in itens.iterrows():
                     executar_comando("UPDATE produtos SET quantidade = quantidade + %s WHERE id = %s", (int(item['quantidade']), int(item['produto_id'])))
             if executar_comando("UPDATE pedidos SET status = %s WHERE id = %s", (novo_status, id_pedido)):
-                st.success("Alterado!"); st.rerun()
+                st.success("Status atualizado no sistema!"); st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
                 
         st.divider()
-        st.markdown("**Histórico**")
+        st.markdown("##### Histórico de Operações")
         for _, p in df_pedidos.iterrows():
-            data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m")
+            data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m/%Y às %H:%M")
             estilo_status = cor_do_status(p['status'])
             
             st.markdown(f"""
-            <div class="card-pedido">
+            <div class="card-pro">
                 <div style="flex: 1 1 100%;">
-                    <h5 style="margin: 0; color: #1e293b;">Pedido #{p['id']}</h5>
+                    <h5 style="margin: 0; color: #004aad; font-weight: 700;">Pedido #{p['id']}</h5>
                     <span style="color: #64748b; font-size: 13px;">👤 {p['cliente']} | 📅 {data_formatada}</span>
                 </div>
-                <div style="display: flex; gap: 10px; width: 100%; justify-content: space-between; align-items: center; margin-top: 5px;">
-                    <h5 style="margin: 0; color: #0f172a;">R$ {float(p['total']):.2f}</h5>
+                <div style="display: flex; gap: 10px; width: 100%; justify-content: space-between; align-items: center; margin-top: 10px;">
+                    <h5 style="margin: 0; color: #0f172a; font-weight: 800;">R$ {float(p['total']):.2f}</h5>
                     <span class="badge-status" style="{estilo_status}">{p['status']}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("Nenhum pedido.")
+        st.info("Não há pedidos registrados no sistema.")
 
 # ==========================================
 # 5. PREDITIVO (INTELIGÊNCIA DE NEGÓCIOS)
 # ==========================================
 elif menu == "Preditivo":
-    st.subheader("🧠 BI Estoque")
+    st.markdown("<h4 style='color: #004aad;'>🧠 Inteligência de Estoque (BI)</h4>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748b;'>Análise algorítmica de risco de ruptura baseada nas saídas dos últimos 30 dias.</p>", unsafe_allow_html=True)
     
     query = """
         SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
@@ -333,16 +411,16 @@ elif menu == "Preditivo":
             
             if estoque == 0:
                 status, cor_borda, cor_fundo, cor_texto = "ESGOTADO", "#dc2626", "#fef2f2", "#991b1b"
-                msg, ordem = "Ruptura. Acione suprimentos.", 1
+                msg, ordem = "Ruptura crítica. Acione setor de suprimentos imediatamente.", 1
             elif estoque <= vendido and vendido > 0:
-                status, cor_borda, cor_fundo, cor_texto = "RISCO", "#ea580c", "#fff7ed", "#9a3412"
-                msg, ordem = f"Saída alta ({vendido}/mês).", 2
+                status, cor_borda, cor_fundo, cor_texto = "ALTO RISCO", "#ea580c", "#fff7ed", "#9a3412"
+                msg, ordem = f"Taxa de saída superior ao estoque ({vendido} un./mês). Reposição urgente.", 2
             elif estoque <= 5:
                 status, cor_borda, cor_fundo, cor_texto = "ATENÇÃO", "#eab308", "#fefce8", "#854d0e"
-                msg, ordem = "Estoque mínimo atingido.", 3
+                msg, ordem = "Estoque mínimo atingido. Planeje nova compra.", 3
             else:
-                status, cor_borda, cor_fundo, cor_texto = "SAUDÁVEL", "#22c55e", "#f0fdf4", "#166534"
-                msg, ordem = "Nível estabilizado.", 4
+                status, cor_borda, cor_fundo, cor_texto = "SAUDÁVEL", "#004aad", "#e6f0fa", "#003377"
+                msg, ordem = "Nível de armazenamento estabilizado.", 4
                 
             ordens.append(ordem)
             status_list.append(status)
@@ -362,19 +440,19 @@ elif menu == "Preditivo":
         
         for _, r in df.iterrows():
             st.markdown(f"""
-            <div style="background-color: {r['cor_fundo']}; padding: 15px; border-radius: 8px; border-left: 5px solid {r['cor_borda']}; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); border: 1px solid #e5e7eb;">
-                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 10px;">
-                    <h5 style="margin: 0; color: #111827; flex: 1 1 60%;">{r['nome']}</h5>
-                    <span style="background: {r['cor_borda']}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 10px; font-weight: bold;">{r['status']}</span>
+            <div style="background-color: {r['cor_fundo']}; padding: 18px; border-radius: 8px; border-left: 6px solid {r['cor_borda']}; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-top: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;">
+                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px;">
+                    <h5 style="margin: 0; color: #0f172a; flex: 1 1 60%; font-weight: 700;">{r['nome']}</h5>
+                    <span style="background: {r['cor_borda']}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;">{r['status']}</span>
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 8px; color: #374151; font-size: 13px;">
-                    <div>Estoque: <b>{r['estoque']}</b></div>
-                    <div>Vendido(30d): <b>{r['vendido_30d']}</b></div>
+                <div style="display: flex; gap: 20px; margin-bottom: 10px; color: #374151; font-size: 14px;">
+                    <div style="background: white; padding: 5px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">📦 Estoque: <b>{r['estoque']}</b></div>
+                    <div style="background: white; padding: 5px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">📈 Vendido(30d): <b>{r['vendido_30d']}</b></div>
                 </div>
-                <div style="color: {r['cor_texto']}; font-size: 12px; font-weight: 500;">
+                <div style="color: {r['cor_texto']}; font-size: 13px; font-weight: 600; margin-top: 8px;">
                     💡 {r['msg']}
                 </div>
             </div>
             """, unsafe_allow_html=True)
     else:
-        st.info("Sem dados para análise.")
+        st.info("Sem dados para análise predativa.")

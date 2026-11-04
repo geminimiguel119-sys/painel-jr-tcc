@@ -7,26 +7,48 @@ from datetime import datetime
 # --- CONFIGURAÇÃO DA PÁGINA (TEMA CORPORATIVO) ---
 st.set_page_config(page_title="Admin - JR Iluminação", page_icon="💡", layout="centered")
 
-# --- FORÇAR LINGUAGEM PT-BR E ESTILOS CSS ---
+# --- FORÇAR LINGUAGEM PT-BR E CORREÇÃO DE TEXTOS INVISÍVEIS ---
 st.markdown("""
     <script>document.documentElement.lang = 'pt-BR';</script>
     <style>
-    /* Fundo do App e Textos */
+    /* ==========================================
+       CORREÇÃO DO BUG DE TEXTO INVISÍVEL (MODO ESCURO)
+       Garante que nenhum texto fique branco no fundo claro
+       ========================================== */
     .stApp {
-        background-color: #f4f7fb;
+        background-color: #f4f7fb !important;
     }
     
-    /* Botões Primários (Azul Corporativo) */
+    /* Força as labels (nomes em cima dos campos) a ficarem escuras */
+    label, .stLabel, [data-testid="stMarkdownContainer"] p {
+        color: #0f172a !important;
+        font-weight: 600 !important;
+    }
+
+    /* Força o texto dentro dos dropdowns (menus) e abas a aparecerem */
+    div[data-baseweb="select"] *, button[data-baseweb="tab"] * {
+        color: #004aad !important;
+    }
+
+    /* Força a cor dos inputs de texto numéricos e campos de arquivo */
+    input, textarea, .stFileUploader * {
+        color: #1e293b !important;
+    }
+    
+    /* ==========================================
+       ESTILOS CORPORATIVOS DO PAINEL
+       ========================================== */
+    /* Botões Primários */
     .stButton>button[kind="primary"] {
-        background-color: #004aad;
-        color: white;
+        background-color: #004aad !important;
+        color: white !important;
         border: none;
         font-weight: 600;
         border-radius: 6px;
         transition: all 0.3s ease;
     }
     .stButton>button[kind="primary"]:hover {
-        background-color: #003377;
+        background-color: #003377 !important;
         box-shadow: 0 4px 8px rgba(0,74,173,0.3);
     }
 
@@ -59,7 +81,7 @@ st.markdown("""
         box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }
 
-    /* Badges de Status */
+    /* Badges de Status - Protegendo a cor branca aqui */
     .badge-status {
         padding: 6px 14px; 
         border-radius: 20px; 
@@ -68,6 +90,7 @@ st.markdown("""
         text-transform: uppercase; 
         white-space: nowrap;
         letter-spacing: 0.5px;
+        color: #ffffff !important;
     }
 
     /* Métricas do Dashboard */
@@ -81,20 +104,8 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.03);
     }
     
-    .metric-title { color: #64748b; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
-    .metric-value { color: #0f172a; font-size: 26px; font-weight: 800; margin: 0; }
-
-    /* ==========================================
-       TRAVA DE SEGURANÇA PARA AS CAIXAS DE SELEÇÃO (DROPDOWNS)
-       Impede o usuário de apagar o texto ou abrir o teclado no celular
-       ========================================== */
-    div[data-baseweb="select"] input {
-        pointer-events: none !important;
-        caret-color: transparent !important;
-    }
-    
-    /* Estilização do Menu Mobile */
-    .stSelectbox label { color: #004aad !important; font-weight: 700; font-size: 16px; }
+    .metric-title { color: #64748b !important; font-size: 14px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    .metric-value { color: #0f172a !important; font-size: 26px; font-weight: 800; margin: 0; }
 
     /* Esconder menus padrão do Streamlit */
     #MainMenu {visibility: hidden;}
@@ -142,10 +153,10 @@ def executar_comando(query, params=None):
             conn.close()
 
 def cor_do_status(status):
-    if status == 'Entregue': return "background-color: #dcfce7; color: #166534; border: 1px solid #bbf7d0;"
-    if status == 'Cancelado': return "background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca;"
-    if status == 'Pendente': return "background-color: #fef9c3; color: #854d0e; border: 1px solid #fef08a;"
-    return "background-color: #e6f0fa; color: #004aad; border: 1px solid #bfdbfe;"
+    if status == 'Entregue': return "background-color: #16a34a;"
+    if status == 'Cancelado': return "background-color: #dc2626;"
+    if status == 'Pendente': return "background-color: #d97706;"
+    return "background-color: #004aad;"
 
 def converter_imagem_base64(uploaded_file):
     if uploaded_file is not None:
@@ -159,7 +170,7 @@ if "logado" not in st.session_state:
     st.session_state.logado = False
 
 if not st.session_state.logado:
-    st.markdown("<div style='text-align: center; margin-bottom: 20px;'><h1 style='color: #004aad;'>💡 JR Iluminação</h1><h3 style='color: #333;'>Painel Corporativo</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: center; margin-bottom: 20px;'><h1 style='color: #004aad !important;'>💡 JR Iluminação</h1><h3 style='color: #333 !important;'>Painel Corporativo</h3></div>", unsafe_allow_html=True)
     senha = st.text_input("Credencial de Acesso (Administrador)", type="password")
     if st.button("Autenticar Sistema", type="primary", use_container_width=True):
         if senha == "admin123": 
@@ -174,14 +185,13 @@ if not st.session_state.logado:
 # ==========================================
 col_logo, col_logout = st.columns([3, 1], vertical_alignment="center")
 with col_logo:
-    st.markdown("<h2 style='margin:0; color: #004aad; font-weight: 700;'>💡 Painel JR</h2>", unsafe_allow_html=True)
+    st.markdown("<h2 style='margin:0; color: #004aad !important; font-weight: 700;'>💡 Painel JR</h2>", unsafe_allow_html=True)
 with col_logout:
     if st.button("Sair", use_container_width=True):
         st.session_state.logado = False
         st.rerun()
 
 st.write("") # Espaçamento
-# O menu agora é blindado contra digitação
 menu = st.selectbox("📍 Navegação do Sistema", ["Resumo", "Produtos", "Clientes", "Pedidos", "Preditivo"])
 st.divider()
 
@@ -189,7 +199,7 @@ st.divider()
 # 1. RESUMO (DASHBOARD FINANCEIRO)
 # ==========================================
 if menu == "Resumo":
-    st.markdown("<h4 style='color: #004aad;'>📊 Visão Geral do Negócio</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #004aad !important;'>📊 Visão Geral do Negócio</h4>", unsafe_allow_html=True)
     
     df_pedidos = buscar_dados("SELECT total, status FROM pedidos WHERE status != 'Cancelado'")
     receita_total = df_pedidos['total'].sum() if not df_pedidos.empty else 0.0
@@ -207,7 +217,7 @@ if menu == "Resumo":
         st.markdown(f"<div class='metric-box'><div class='metric-title'>Clientes</div><div class='metric-value'>{total_clientes}</div></div>", unsafe_allow_html=True)
     
     st.divider()
-    st.markdown("<h5 style='color: #333;'>Últimos Pedidos Processados</h5>", unsafe_allow_html=True)
+    st.markdown("<h5 style='color: #333 !important;'>Últimos Pedidos Processados</h5>", unsafe_allow_html=True)
     ultimos = buscar_dados("SELECT id, total, status, data_pedido FROM pedidos ORDER BY data_pedido DESC LIMIT 5")
     
     if not ultimos.empty:
@@ -218,11 +228,11 @@ if menu == "Resumo":
             st.markdown(f"""
             <div class="card-pro">
                 <div>
-                    <h5 style="margin: 0; color: #1e293b; font-weight: 700;">#{p['id']}</h5>
-                    <span style="color: #64748b; font-size: 13px;">📅 {data_formatada}</span>
+                    <h5 style="margin: 0; color: #1e293b !important; font-weight: 700;">#{p['id']}</h5>
+                    <span style="color: #64748b !important; font-size: 13px;">📅 {data_formatada}</span>
                 </div>
                 <div>
-                    <h5 style="margin: 0; color: #004aad; font-weight: 800;">R$ {p['total']:.2f}</h5>
+                    <h5 style="margin: 0; color: #004aad !important; font-weight: 800;">R$ {p['total']:.2f}</h5>
                 </div>
                 <div>
                     <span class="badge-status" style="{estilo_status}">{p['status']}</span>
@@ -236,7 +246,7 @@ if menu == "Resumo":
 # 2. PRODUTOS (ESTOQUE)
 # ==========================================
 elif menu == "Produtos":
-    st.markdown("<h4 style='color: #004aad;'>📦 Gestão de Estoque</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #004aad !important;'>📦 Gestão de Estoque</h4>", unsafe_allow_html=True)
     tab1, tab2, tab3, tab4 = st.tabs(["📋 Catálogo", "➕ Adicionar", "✏️ Editar", "🗑️ Excluir"])
     
     with tab1:
@@ -252,9 +262,9 @@ elif menu == "Produtos":
                         else:
                             st.markdown("<div style='text-align:center; padding: 20px; background: #f1f5f9; border-radius: 8px; color: #94a3b8;'>Sem foto</div>", unsafe_allow_html=True)
                     with col_txt:
-                        st.markdown(f"<h4 style='margin:0; color:#004aad; font-size: 17px; font-weight: 700;'>{r['nome']}</h4>", unsafe_allow_html=True)
-                        st.markdown(f"<p style='margin:2px 0; color:#64748b; font-size: 13px;'>Categoria: <b>{r.get('categoria', 'N/A')}</b></p>", unsafe_allow_html=True)
-                        st.markdown(f"<div style='color:#0f172a; font-weight: bold; font-size: 15px; margin-top: 5px;'>Valor: R$ {float(r['preco']):.2f} &nbsp;|&nbsp; 📦 Estoque: {int(r['quantidade'])} un.</div>", unsafe_allow_html=True)
+                        st.markdown(f"<h4 style='margin:0; color:#004aad !important; font-size: 17px; font-weight: 700;'>{r['nome']}</h4>", unsafe_allow_html=True)
+                        st.markdown(f"<p style='margin:2px 0; color:#64748b !important; font-size: 13px;'>Categoria: <b>{r.get('categoria', 'N/A')}</b></p>", unsafe_allow_html=True)
+                        st.markdown(f"<div style='color:#0f172a !important; font-weight: bold; font-size: 15px; margin-top: 5px;'>Valor: R$ {float(r['preco']):.2f} &nbsp;|&nbsp; 📦 Estoque: {int(r['quantidade'])} un.</div>", unsafe_allow_html=True)
         else: 
             st.info("Catálogo vazio.")
             
@@ -312,7 +322,7 @@ elif menu == "Produtos":
 # 3. CLIENTES E CONTROLE DE ACESSO
 # ==========================================
 elif menu == "Clientes":
-    st.markdown("<h4 style='color: #004aad;'>👥 Aprovação e Controle de Clientes</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #004aad !important;'>👥 Aprovação e Controle de Clientes</h4>", unsafe_allow_html=True)
     
     df_clientes = buscar_dados("SELECT * FROM clientes ORDER BY id DESC")
     if not df_clientes.empty:
@@ -338,8 +348,8 @@ elif menu == "Clientes":
             <div class="card-cliente">
                 <div style="font-size: 28px; background: #e6f0fa; padding: 10px; border-radius: 50%;">🏢</div>
                 <div style="overflow: hidden;">
-                    <h5 style="margin: 0; color: #004aad; font-weight: 700;">{c['nome']}</h5>
-                    <span style="color: #64748b; font-size: 13px;">📧 {c['email']}</span>
+                    <h5 style="margin: 0; color: #004aad !important; font-weight: 700;">{c['nome']}</h5>
+                    <span style="color: #64748b !important; font-size: 13px;">📧 {c['email']}</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -350,7 +360,7 @@ elif menu == "Clientes":
 # 4. PEDIDOS
 # ==========================================
 elif menu == "Pedidos":
-    st.markdown("<h4 style='color: #004aad;'>🛍️ Gestão de Encomendas</h4>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #004aad !important;'>🛍️ Gestão de Encomendas</h4>", unsafe_allow_html=True)
     df_pedidos = buscar_dados("""
         SELECT p.id, c.nome as cliente, p.total, p.status, p.data_pedido 
         FROM pedidos p 
@@ -374,7 +384,7 @@ elif menu == "Pedidos":
         st.markdown("</div>", unsafe_allow_html=True)
                 
         st.divider()
-        st.markdown("##### Histórico de Operações")
+        st.markdown("<h5 style='color: #333 !important;'>Histórico de Operações</h5>", unsafe_allow_html=True)
         for _, p in df_pedidos.iterrows():
             data_formatada = pd.to_datetime(p['data_pedido']).strftime("%d/%m/%Y às %H:%M")
             estilo_status = cor_do_status(p['status'])
@@ -382,11 +392,11 @@ elif menu == "Pedidos":
             st.markdown(f"""
             <div class="card-pro">
                 <div style="flex: 1 1 100%;">
-                    <h5 style="margin: 0; color: #004aad; font-weight: 700;">Pedido #{p['id']}</h5>
-                    <span style="color: #64748b; font-size: 13px;">👤 {p['cliente']} | 📅 {data_formatada}</span>
+                    <h5 style="margin: 0; color: #004aad !important; font-weight: 700;">Pedido #{p['id']}</h5>
+                    <span style="color: #64748b !important; font-size: 13px;">👤 {p['cliente']} | 📅 {data_formatada}</span>
                 </div>
                 <div style="display: flex; gap: 10px; width: 100%; justify-content: space-between; align-items: center; margin-top: 10px;">
-                    <h5 style="margin: 0; color: #0f172a; font-weight: 800;">R$ {float(p['total']):.2f}</h5>
+                    <h5 style="margin: 0; color: #0f172a !important; font-weight: 800;">R$ {float(p['total']):.2f}</h5>
                     <span class="badge-status" style="{estilo_status}">{p['status']}</span>
                 </div>
             </div>
@@ -398,8 +408,8 @@ elif menu == "Pedidos":
 # 5. PREDITIVO (INTELIGÊNCIA DE NEGÓCIOS)
 # ==========================================
 elif menu == "Preditivo":
-    st.markdown("<h4 style='color: #004aad;'>🧠 Inteligência de Estoque (BI)</h4>", unsafe_allow_html=True)
-    st.markdown("<p style='font-size: 14px; color: #64748b;'>Análise algorítmica de risco de ruptura baseada nas saídas dos últimos 30 dias.</p>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color: #004aad !important;'>🧠 Inteligência de Estoque (BI)</h4>", unsafe_allow_html=True)
+    st.markdown("<p style='font-size: 14px; color: #64748b !important;'>Análise algorítmica de risco de ruptura baseada nas saídas dos últimos 30 dias.</p>", unsafe_allow_html=True)
     
     query = """
         SELECT p.id, p.nome, COALESCE(p.quantidade, 0) as estoque,
@@ -452,14 +462,14 @@ elif menu == "Preditivo":
             st.markdown(f"""
             <div style="background-color: {r['cor_fundo']}; padding: 18px; border-radius: 8px; border-left: 6px solid {r['cor_borda']}; margin-bottom: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-top: 1px solid #e5e7eb; border-right: 1px solid #e5e7eb; border-bottom: 1px solid #e5e7eb;">
                 <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px;">
-                    <h5 style="margin: 0; color: #0f172a; flex: 1 1 60%; font-weight: 700;">{r['nome']}</h5>
+                    <h5 style="margin: 0; color: #0f172a !important; flex: 1 1 60%; font-weight: 700;">{r['nome']}</h5>
                     <span style="background: {r['cor_borda']}; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px;">{r['status']}</span>
                 </div>
-                <div style="display: flex; gap: 20px; margin-bottom: 10px; color: #374151; font-size: 14px;">
+                <div style="display: flex; gap: 20px; margin-bottom: 10px; color: #374151 !important; font-size: 14px;">
                     <div style="background: white; padding: 5px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">📦 Estoque: <b>{r['estoque']}</b></div>
                     <div style="background: white; padding: 5px 10px; border-radius: 4px; border: 1px solid #e2e8f0;">📈 Vendido(30d): <b>{r['vendido_30d']}</b></div>
                 </div>
-                <div style="color: {r['cor_texto']}; font-size: 13px; font-weight: 600; margin-top: 8px;">
+                <div style="color: {r['cor_texto']} !important; font-size: 13px; font-weight: 600; margin-top: 8px;">
                     💡 {r['msg']}
                 </div>
             </div>

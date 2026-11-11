@@ -90,7 +90,6 @@ st.markdown("""
 # ==========================================
 DB_URL = "postgresql://postgres.bfppcxnxqagpesuyjlhe:An1bal_19691910%40@aws-0-us-west-2.pooler.supabase.com:5432/postgres"
 
-@st.cache_resource
 def conectar():
     return psycopg2.connect(DB_URL)
 

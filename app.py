@@ -81,7 +81,7 @@ st.markdown("""
     .metric-value { color: #0f172a !important; font-size: 32px; font-weight: 900; margin: 0; }
 
     /* Ocultar elementos nativos desnecessários */
-    #MainMenu {visibility: hidden;} footer {visibility: hidden;} header {visibility: hidden;}
+   #MainMenu {visibility: hidden;} footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 

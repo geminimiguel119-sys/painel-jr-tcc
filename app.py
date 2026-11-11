@@ -225,12 +225,12 @@ elif "Estoque" in menu:
             
     with t2:
         with st.container(border=True):
-            n = st.text_input("Nome do Produto")
-            c = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"])
+            n = st.text_input("Nome do Produto", key="add_nome")
+            c = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"], key="add_cat")
             c1, c2 = st.columns(2)
-            p = c1.number_input("Preço (R$)", min_value=0.1, format="%.2f")
-            q = c2.number_input("Quantidade Inicial", min_value=0, step=1)
-            img = st.file_uploader("Foto do Produto", type=["png", "jpg", "jpeg"])
+            p = c1.number_input("Preço (R$)", min_value=0.1, format="%.2f", key="add_preco")
+            q = c2.number_input("Quantidade Inicial", min_value=0, step=1, key="add_qtd")
+            img = st.file_uploader("Foto do Produto", type=["png", "jpg", "jpeg"], key="add_img")
             if st.button("💾 Cadastrar Produto Novo", type="primary", use_container_width=True):
                 if n and executar_comando("INSERT INTO produtos (nome, categoria, preco, quantidade, imagem) VALUES (%s, %s, %s, %s, %s)", (n, c, p, q, converter_imagem_base64(img))):
                     st.toast("✅ Produto cadastrado com sucesso!", icon="🎉")
@@ -240,16 +240,16 @@ elif "Estoque" in menu:
         df = buscar_dados("SELECT * FROM produtos ORDER BY nome ASC")
         if not df.empty:
             opcs = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-            pid = opcs[st.selectbox("Selecione o Produto para Edição", list(opcs.keys()))]
+            pid = opcs[st.selectbox("Selecione o Produto para Edição", list(opcs.keys()), key="edit_select")]
             prod = df[df['id'] == pid].iloc[0]
             
             with st.container(border=True):
-                en = st.text_input("Nome", value=str(prod['nome']))
-                ec = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"], index=0)
+                en = st.text_input("Nome", value=str(prod['nome']), key="edit_nome")
+                ec = st.selectbox("Categoria", ["Lâmpadas", "Fitas LED", "Plafons", "Spots", "Outros"], index=0, key="edit_cat")
                 c1, c2 = st.columns(2)
-                ep = c1.number_input("Preço (R$)", value=float(prod['preco']), format="%.2f")
-                eq = c2.number_input("Estoque Atual", value=int(prod['quantidade']), step=1)
-                eimg = st.file_uploader("Trocar Imagem (Opcional)", type=["png", "jpg", "jpeg"])
+                ep = c1.number_input("Preço (R$)", value=float(prod['preco']), format="%.2f", key="edit_preco")
+                eq = c2.number_input("Estoque Atual", value=int(prod['quantidade']), step=1, key="edit_qtd")
+                eimg = st.file_uploader("Trocar Imagem (Opcional)", type=["png", "jpg", "jpeg"], key="edit_img")
                 
                 if st.button("🔄 Salvar Alterações", type="primary", use_container_width=True):
                     img_final = converter_imagem_base64(eimg) if eimg else str(prod.get('imagem', ''))
@@ -261,7 +261,7 @@ elif "Estoque" in menu:
         df = buscar_dados("SELECT id, nome FROM produtos ORDER BY id DESC")
         if not df.empty:
             opcs = {f"#{r['id']} - {r['nome']}": r['id'] for _, r in df.iterrows()}
-            del_id = opcs[st.selectbox("Escolha o Produto para Excluir", list(opcs.keys()))]
+            del_id = opcs[st.selectbox("Escolha o Produto para Excluir", list(opcs.keys()), key="del_select")]
             st.error("⚠️ Atenção: Esta ação não pode ser desfeita.")
             if st.button("🗑️ Excluir Produto Definitivamente", type="primary", use_container_width=True):
                 if executar_comando("DELETE FROM produtos WHERE id=%s", (del_id,)):
